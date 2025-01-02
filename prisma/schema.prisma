@@ -1,0 +1,66 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int      @id @default(autoincrement())
+  firstname       String?
+  lastname        String?
+  email           String   @unique
+  phone           String?
+  address         String?
+  password        String
+  role            Role
+  permissions     String[]
+  statesCovered   String[]
+  name            String?
+  additionalEmail String?
+  industry        String?
+
+  campaignsAsClient        Campaign[] @relation("ClientRelation")
+  campaignsAsAccountManager Campaign[] @relation("AccountManagerRelation")
+  siteAssignments           SiteAssignment[] @relation("FieldAuditorRelation") // New relation for SiteAssignment
+}
+
+model Campaign {
+  id               Int      @id @default(autoincrement())
+  clientId         Int
+  accountManagerId Int
+  siteList         Json
+  uploadedAt       DateTime @default(now())
+  editedAt         DateTime?
+  totalSites       Int
+
+  client           User     @relation("ClientRelation", fields: [clientId], references: [id])
+  accountManager   User     @relation("AccountManagerRelation", fields: [accountManagerId], references: [id])
+  siteAssignments  SiteAssignment[] @relation("CampaignRelation") // New relation for SiteAssignment
+}
+
+model SiteAssignment {
+  id             Int      @id @default(autoincrement())
+  campaignId     Int
+  siteCode       String
+  fieldAuditorId Int
+
+  campaign       Campaign @relation("CampaignRelation", fields: [campaignId], references: [id])
+  fieldAuditor   User     @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
+}
+
+enum Role {
+  SUPER_ADMIN
+  CHIEF_ACCOUNT_MANAGER
+  ACCOUNT_MANAGER
+  FIELD_AUDITOR
+  CLIENT_AGENCY_USER
+}
