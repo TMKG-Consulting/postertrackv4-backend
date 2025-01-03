@@ -229,3 +229,77 @@ exports.viewCampaign = async (req, res) => {
     res.status(500).json({ error: "Error retrieving campaign." });
   }
 };
+
+// Fetch Campaigns Based on Role
+exports.fetchCampaigns = async (req, res) => {
+  try {
+    const { role, id: userId } = req.user;
+
+    let campaigns;
+
+    if (role === "SUPER_ADMIN" || role === "CHIEF_ACCOUNT_MANAGER") {
+      // Fetch all campaigns for SUPER_ADMIN and CHIEF_ACCOUNT_MANAGER
+      campaigns = await prisma.campaign.findMany({
+        include: {
+          client: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+              email: true,
+            },
+          },
+          accountManager: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+              email: true,
+            },
+          },
+        },
+      });
+    } else if (role === "ACCOUNT_MANAGER") {
+      // Fetch campaigns assigned to the ACCOUNT_MANAGER
+      campaigns = await prisma.campaign.findMany({
+        where: { accountManagerId: userId },
+        include: {
+          client: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+              email: true,
+            },
+          },
+          accountManager: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+              email: true,
+            },
+          },
+        },
+      });
+    } else {
+      // Unauthorized access
+      return res
+        .status(403)
+        .json(
+          "Permission Denied: You are not authorized to access this resource."
+        );
+    }
+
+    // Return the campaigns with their siteList
+    const campaignsWithSiteList = campaigns.map((campaign) => ({
+      ...campaign,
+      siteList: campaign.siteList, // Include siteList JSON
+    }));
+
+    res.status(200).json(campaignsWithSiteList);
+  } catch (error) {
+    console.error("Error fetching campaigns:", error);
+    res.status(500).json({ error: "Error fetching campaigns." });
+  }
+};

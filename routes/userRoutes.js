@@ -11,5 +11,6 @@ router.post(
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   userController.createUser
 );
+router.get("/users", authToken, userController.fetchAllUsers);
 
 module.exports = router;

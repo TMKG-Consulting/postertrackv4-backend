@@ -8,7 +8,7 @@ const { authToken, authRole } = require("../middleware/auth");
 const upload = multer({
   dest: "uploads/",
   fileFilter: (req, file, cb) => {
-    // console.log("File Info in Filter:", file); 
+    // console.log("File Info in Filter:", file);
     const allowedTypes = [
       "application/vnd.ms-excel",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -35,5 +35,7 @@ router.get(
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   campaignController.viewCampaign
 );
+
+router.get("/campaigns", authToken, campaignController.fetchCampaigns);
 
 module.exports = router;

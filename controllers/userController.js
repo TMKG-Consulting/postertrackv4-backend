@@ -142,15 +142,10 @@ exports.createUser = async (req, res) => {
       );
   }
 
-  if (
-    role === "CLIENT_AGENCY_USER" &&
-    (!name)
-  ) {
+  if (role === "CLIENT_AGENCY_USER" && !name) {
     return res
       .status(400)
-      .json(
-        "Name is required for Client/Agency User role."
-      );
+      .json("Name is required for Client/Agency User role.");
   }
 
   if (
@@ -202,5 +197,43 @@ exports.createUser = async (req, res) => {
     res.status(201).json(newUser);
   } catch (error) {
     res.status(500).json({ error: "Error creating user account." });
+  }
+};
+
+// Fetch All Users
+exports.fetchAllUsers = async (req, res) => {
+  try {
+    // Check if the user has the required role
+    if (
+      req.user.role !== "SUPER_ADMIN" &&
+      req.user.role !== "CHIEF_ACCOUNT_MANAGER"
+    ) {
+      return res
+        .status(403)
+        .json(
+          "Permission Denied: You are not authorized to access this resource."
+        );
+    }
+
+    // Fetch all users from the database
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        firstname: true,
+        lastname: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        role: true,
+        statesCovered: true,
+      },
+    });
+
+    // Return the users
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ error: "Error fetching users." });
   }
 };
