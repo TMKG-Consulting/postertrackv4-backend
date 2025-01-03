@@ -19,7 +19,7 @@ exports.createSuperAdmin = async (req, res) => {
   if (!firstname || !lastname || !email || !password) {
     return res
       .status(400)
-      .send("Firstname, lastname, email, and password are required.");
+      .json("Firstname, lastname, email, and password are required.");
   }
 
   try {
@@ -44,14 +44,14 @@ exports.createSuperAdmin = async (req, res) => {
 exports.login = async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
-    return res.status(400).send("Email and password are required.");
+    return res.status(400).json("Email and password are required.");
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).send("User not found.");
+    if (!user) return res.status(404).json("User not found.");
 
     const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) return res.status(401).send("Invalid credentials.");
+    if (!validPassword) return res.status(401).json("Invalid credentials.");
 
     const token = jwt.sign(
       { id: user.id, role: user.role },
@@ -111,13 +111,13 @@ exports.createUser = async (req, res) => {
   }
 
   if (!email || !role) {
-    return res.status(400).send("Email and role are required.");
+    return res.status(400).json("Email and role are required.");
   }
 
   if (role === "CHIEF_ACCOUNT_MANAGER" && req.user.role !== "SUPER_ADMIN") {
     return res
       .status(403)
-      .send("Only Super Admin can create a Chief Account Manager.");
+      .json("Only Super Admin can create a Chief Account Manager.");
   }
 
   if (
@@ -126,7 +126,7 @@ exports.createUser = async (req, res) => {
   ) {
     return res
       .status(400)
-      .send(
+      .json(
         "Firstname, lastname, and permissions are required for Account Manager role."
       );
   }
@@ -137,7 +137,7 @@ exports.createUser = async (req, res) => {
   ) {
     return res
       .status(400)
-      .send(
+      .json(
         "Firstname, lastname, and states covered are required for Field Auditor role."
       );
   }
@@ -148,7 +148,7 @@ exports.createUser = async (req, res) => {
   ) {
     return res
       .status(400)
-      .send(
+      .json(
         "Name is required for Client/Agency User role."
       );
   }
@@ -163,7 +163,7 @@ exports.createUser = async (req, res) => {
   ) {
     return res
       .status(400)
-      .send(
+      .json(
         "Invalid role. Allowed roles are CHIEF_ACCOUNT_MANAGER, ACCOUNT_MANAGER, FIELD_AUDITOR, CLIENT_AGENCY_USER."
       );
   }

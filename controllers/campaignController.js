@@ -74,11 +74,11 @@ exports.createCampaign = async (req, res) => {
   if (!clientId || !accountManagerId) {
     return res
       .status(400)
-      .send("Client ID and Account Manager ID are required.");
+      .json("Client ID and Account Manager ID are required.");
   }
 
   if (!req.file) {
-    return res.status(400).send("A site list file is required.");
+    return res.status(400).json("A site list file is required.");
   }
 
   try {
@@ -91,17 +91,17 @@ exports.createCampaign = async (req, res) => {
     });
 
     if (!client) {
-      return res.status(404).send("Client not found.");
+      return res.status(404).json("Client not found.");
     }
     if (!accountManager) {
-      return res.status(404).send("Account Manager not found.");
+      return res.status(404).json("Account Manager not found.");
     }
 
     // Parse the uploaded file
     const { duplicates, data, error } = parseSiteList(req.file.path);
 
     if (error) {
-      return res.status(400).send(error); // Handle missing columns
+      return res.status(400).json(error); // Handle missing columns
     }
 
     if (duplicates.length > 0 && !proceedWithDuplicates) {
@@ -192,7 +192,7 @@ exports.viewCampaign = async (req, res) => {
     });
 
     if (!campaign) {
-      return res.status(404).send("Campaign not found.");
+      return res.status(404).json("Campaign not found.");
     }
 
     // Check user permissions
@@ -202,7 +202,7 @@ exports.viewCampaign = async (req, res) => {
     ) {
       return res
         .status(403)
-        .send(
+        .json(
           "Permission Denied: You can only access your assigned campaigns."
         );
     }
@@ -220,7 +220,7 @@ exports.viewCampaign = async (req, res) => {
     } else {
       return res
         .status(403)
-        .send(
+        .json(
           "Permission Denied: Only authorized users can access this campaign."
         );
     }
