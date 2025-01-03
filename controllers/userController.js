@@ -237,3 +237,58 @@ exports.fetchAllUsers = async (req, res) => {
     res.status(500).json({ error: "Error fetching users." });
   }
 };
+
+// Fetch Single User Information
+exports.getUser = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Parse the user ID
+    const userId = parseInt(id);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: "Invalid user ID." });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstname: true,
+        lastname: true,
+        email: true,
+        phone: true,
+        address: true,
+        role: true,
+        permissions: true,
+        statesCovered: true,
+        name: true,
+        additionalEmail: true,
+        industry: true,
+        campaignsAsClient: true,
+        campaignsAsAccountManager: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // Access control
+    if (
+      req.user.role !== "SUPER_ADMIN" &&
+      req.user.role !== "CHIEF_ACCOUNT_MANAGER" &&
+      req.user.id !== userId
+    ) {
+      return res.status(403).json({
+        error:
+          "Permission Denied: You are not authorized to access this user's information.",
+      });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    res.status(500).json({ error: "Error fetching user information." });
+  }
+};
