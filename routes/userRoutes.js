@@ -14,6 +14,6 @@ router.post(
 router.get("/users", authToken, userController.fetchAllUsers);
 
 // Fetch a single user's information
-router.get("/users/:id", authToken, userController.getUser);
+router.get("/user/detail", authToken, userController.getUser);
 
 module.exports = router;

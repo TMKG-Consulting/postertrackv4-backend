@@ -251,11 +251,9 @@ const transporter = nodemailer.createTransport({
 exports.createSuperAdmin = async (req, res) => {
   const { firstname, lastname, email, phone, password } = req.body;
   if (!firstname || !lastname || !email || !password) {
-    return res
-      .status(400)
-      .json({
-        error: "Firstname, lastname, email, and password are required.",
-      });
+    return res.status(400).json({
+      error: "Firstname, lastname, email, and password are required.",
+    });
   }
 
   try {
@@ -335,7 +333,6 @@ exports.createUser = async (req, res) => {
     phone,
     address,
     role,
-    permissions,
     statesCovered,
     name,
     additionalEmail,
@@ -361,16 +358,6 @@ exports.createUser = async (req, res) => {
     }
 
     if (
-      role === "ACCOUNT_MANAGER" &&
-      (!firstname || !lastname || !permissions || !Array.isArray(permissions))
-    ) {
-      return res.status(400).json({
-        error:
-          "Firstname, lastname, and permissions are required for Account Manager role.",
-      });
-    }
-
-    if (
       role === "FIELD_AUDITOR" &&
       (!firstname ||
         !lastname ||
@@ -383,10 +370,30 @@ exports.createUser = async (req, res) => {
       });
     }
 
-    if (role === "CLIENT_AGENCY_USER" && !name) {
-      return res.status(400).json({
-        error: "Name is required for Client/Agency User role.",
-      });
+    if (role === "CLIENT_AGENCY_USER") {
+      if (!name) {
+        return res.status(400).json({
+          error: "Name is required for Client/Agency User role.",
+        });
+      }
+
+      if (!Array.isArray(additionalEmail)) {
+        return res.status(400).json({
+          error: "Additional email must be an array.",
+        });
+      }
+
+      if (additionalEmail.length > 2) {
+        return res.status(400).json({
+          error: "Additional email array can only contain up to 2 emails.",
+        });
+      }
+
+      if (!additionalEmail.every((email) => /^\S+@\S+\.\S+$/.test(email))) {
+        return res.status(400).json({
+          error: "All additional emails must be valid email addresses.",
+        });
+      }
     }
 
     const generatedPassword = generateRandomPassword();
@@ -401,7 +408,6 @@ exports.createUser = async (req, res) => {
         address,
         password: hashedPassword,
         role,
-        permissions: role === "ACCOUNT_MANAGER" ? permissions : undefined,
         statesCovered: role === "FIELD_AUDITOR" ? statesCovered : undefined,
         name: role === "CLIENT_AGENCY_USER" ? name : undefined,
         additionalEmail:
@@ -461,33 +467,21 @@ exports.fetchAllUsers = async (req, res) => {
 
 // Fetch Single User Information
 exports.getUser = async (req, res) => {
-  const { id } = req.params;
-
   try {
-    // Parse the user ID
-    const userId = parseInt(id);
+    const userId = req.user.id; // Extract user ID from the token's payload
 
-    if (isNaN(userId)) {
-      return res.status(400).json({ error: "Invalid user ID." });
-    }
-
+    // Fetch the user from the database
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
         firstname: true,
         lastname: true,
+        name: true,
         email: true,
         phone: true,
         address: true,
         role: true,
-        permissions: true,
-        statesCovered: true,
-        name: true,
-        additionalEmail: true,
-        industry: true,
-        campaignsAsClient: true,
-        campaignsAsAccountManager: true,
       },
     });
 
@@ -495,21 +489,9 @@ exports.getUser = async (req, res) => {
       return res.status(404).json({ error: "User not found." });
     }
 
-    // Access control
-    if (
-      req.user.role !== "SUPER_ADMIN" &&
-      req.user.role !== "CHIEF_ACCOUNT_MANAGER" &&
-      req.user.id !== userId
-    ) {
-      return res.status(403).json({
-        error:
-          "Permission Denied: You are not authorized to access this user's information.",
-      });
-    }
-
     res.status(200).json(user);
   } catch (error) {
-    console.error("Error fetching user:", error);
-    res.status(500).json({ error: "Error fetching user information." });
+    console.error("Error fetching user details:", error);
+    res.status(500).json({ error: "Error retrieving user details." });
   }
 };
