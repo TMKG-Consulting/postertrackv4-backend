@@ -3,7 +3,8 @@ const cors = require("cors");
 const userRoutes = require("./routes/userRoutes");
 const campaignRoutes = require("./routes/campaignRoutes");
 const locationRoutes = require("./routes/locationRoutes");
-const industryRoutes = require("./routes/industryRoutes")
+const industryRoutes = require("./routes/industryRoutes");
+const billboardRoutes = require("./routes/billboardRoutes");
 const app = express();
 require("dotenv").config();
 
@@ -21,6 +22,7 @@ app.use("/", userRoutes);
 app.use("/", campaignRoutes);
 app.use("/", locationRoutes);
 app.use("/", industryRoutes);
+app.use("/", billboardRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

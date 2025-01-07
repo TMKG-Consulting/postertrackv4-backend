@@ -92,3 +92,24 @@ model City {
   stateId Int
   state   State   @relation(fields: [stateId], references: [id])
 }
+
+model Advertiser {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  brands   Brand[]
+}
+
+model Category {
+  id      Int     @id @default(autoincrement())
+  name    String  
+  brands  Brand[]
+}
+
+model Brand {
+  id           Int        @id @default(autoincrement())
+  name         String
+  advertiserId Int
+  categoryId   Int      
+  advertiser   Advertiser  @relation(fields: [advertiserId], references: [id])
+  category     Category @relation(fields: [categoryId], references: [id])
+}
