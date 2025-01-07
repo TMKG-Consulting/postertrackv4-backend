@@ -14,46 +14,53 @@ datasource db {
 }
 
 model User {
-  id              Int      @id @default(autoincrement())
-  firstname       String?
-  lastname        String?
-  email           String   @unique
-  phone           String?
-  address         String?
-  password        String
-  role            Role
-  statesCovered   String[]
-  name            String?
-  additionalEmail String[] @default([])
-  industry        String?
+  id                       Int       @id @default(autoincrement())
+  firstname                String?
+  lastname                 String?
+  email                    String    @unique
+  phone                    String?
+  address                  String?
+  password                 String
+  role                     Role
+  statesCovered            State[]   @relation("UserStates")
+  name                     String?
+  additionalEmail          String[]  @default([])
+  industryId               Int?
+  industry                 Industry? @relation(fields: [industryId], references: [id])
 
   campaignsAsClient        Campaign[] @relation("ClientRelation")
   campaignsAsAccountManager Campaign[] @relation("AccountManagerRelation")
-  siteAssignments           SiteAssignment[] @relation("FieldAuditorRelation") // New relation for SiteAssignment
+  siteAssignments          SiteAssignment[] @relation("FieldAuditorRelation")
+}
+
+model Industry {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  users User[]
 }
 
 model Campaign {
-  id               Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   clientId         Int
   accountManagerId Int
   siteList         Json
-  uploadedAt       DateTime @default(now())
+  uploadedAt       DateTime  @default(now())
   editedAt         DateTime?
   totalSites       Int
 
-  client           User     @relation("ClientRelation", fields: [clientId], references: [id])
-  accountManager   User     @relation("AccountManagerRelation", fields: [accountManagerId], references: [id])
-  siteAssignments  SiteAssignment[] @relation("CampaignRelation") // New relation for SiteAssignment
+  client           User      @relation("ClientRelation", fields: [clientId], references: [id])
+  accountManager   User      @relation("AccountManagerRelation", fields: [accountManagerId], references: [id])
+  siteAssignments  SiteAssignment[] @relation("CampaignRelation")
 }
 
 model SiteAssignment {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   campaignId     Int
   siteCode       String
   fieldAuditorId Int
 
-  campaign       Campaign @relation("CampaignRelation", fields: [campaignId], references: [id])
-  fieldAuditor   User     @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
+  campaign       Campaign  @relation("CampaignRelation", fields: [campaignId], references: [id])
+  fieldAuditor   User      @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
 }
 
 enum Role {
@@ -65,17 +72,18 @@ enum Role {
 }
 
 model Region {
-  id       Int      @id @default(autoincrement())
-  name     String   @unique
-  states   State[]
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  states State[] @relation("RegionStates")
 }
 
 model State {
-  id           Int        @id @default(autoincrement())
-  name         String
-  regionId     Int
-  region       Region  @relation(fields: [regionId], references: [id])
-  cities       City[]
+  id       Int      @id @default(autoincrement())
+  name     String
+  regionId Int
+  region   Region   @relation("RegionStates", fields: [regionId], references: [id])
+  cities   City[]
+  users    User[]   @relation("UserStates") // Added reverse relation to User model
 }
 
 model City {
@@ -83,9 +91,4 @@ model City {
   name    String
   stateId Int
   state   State   @relation(fields: [stateId], references: [id])
-}
-
-model Industry {
-  id    Int    @id @default(autoincrement())
-  name  String @unique
 }

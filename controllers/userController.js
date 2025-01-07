@@ -4,7 +4,6 @@ const nodemailer = require("nodemailer");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-
 // Email configuration
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -103,10 +102,11 @@ exports.createUser = async (req, res) => {
     statesCovered,
     name,
     additionalEmail,
-    industry,
+    industryId,
   } = req.body;
 
   try {
+    // Check for existing user
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res
@@ -118,23 +118,31 @@ exports.createUser = async (req, res) => {
       return res.status(400).json({ error: "Email and role are required." });
     }
 
+    // Role-based validations
     if (role === "CHIEF_ACCOUNT_MANAGER" && req.user.role !== "SUPER_ADMIN") {
       return res.status(403).json({
         error: "Only Super Admin can create a Chief Account Manager.",
       });
     }
 
-    if (
-      role === "FIELD_AUDITOR" &&
-      (!firstname ||
-        !lastname ||
-        !statesCovered ||
-        !Array.isArray(statesCovered))
-    ) {
-      return res.status(400).json({
-        error:
-          "Firstname, lastname, and states covered are required for Field Auditor role.",
+    if (role === "FIELD_AUDITOR") {
+      if (!firstname || !lastname || !Array.isArray(statesCovered)) {
+        return res.status(400).json({
+          error:
+            "Firstname, lastname, and statesCovered (array of state IDs) are required for Field Auditor role.",
+        });
+      }
+
+      // Validate state IDs
+      const validStates = await prisma.state.findMany({
+        where: { id: { in: statesCovered } },
       });
+
+      if (validStates.length !== statesCovered.length) {
+        return res.status(400).json({
+          error: "Some provided state IDs are invalid.",
+        });
+      }
     }
 
     if (role === "CLIENT_AGENCY_USER") {
@@ -161,11 +169,30 @@ exports.createUser = async (req, res) => {
           error: "All additional emails must be valid email addresses.",
         });
       }
+
+      // Validate industry ID
+      if (!industryId) {
+        return res.status(400).json({
+          error: "Industry ID is required for Client/Agency User role.",
+        });
+      }
+
+      const industryExists = await prisma.industry.findUnique({
+        where: { id: industryId },
+      });
+
+      if (!industryExists) {
+        return res.status(400).json({
+          error: "Provided industry ID does not exist.",
+        });
+      }
     }
 
+    // Generate a password and hash it
     const generatedPassword = generateRandomPassword();
     const hashedPassword = await bcrypt.hash(generatedPassword, 10);
 
+    // Create the user
     const newUser = await prisma.user.create({
       data: {
         firstname: role === "CLIENT_AGENCY_USER" ? undefined : firstname,
@@ -175,14 +202,18 @@ exports.createUser = async (req, res) => {
         address,
         password: hashedPassword,
         role,
-        statesCovered: role === "FIELD_AUDITOR" ? statesCovered : undefined,
+        statesCovered:
+          role === "FIELD_AUDITOR"
+            ? { connect: statesCovered.map((id) => ({ id })) }
+            : undefined,
         name: role === "CLIENT_AGENCY_USER" ? name : undefined,
         additionalEmail:
           role === "CLIENT_AGENCY_USER" ? additionalEmail : undefined,
-        industry: role === "CLIENT_AGENCY_USER" ? industry : undefined,
+        industryId: role === "CLIENT_AGENCY_USER" ? industryId : undefined,
       },
     });
 
+    // Send account creation email
     await sendEmail(
       email,
       "Your PosterTrack Account Details",
@@ -260,5 +291,139 @@ exports.getUser = async (req, res) => {
   } catch (error) {
     console.error("Error fetching user details:", error);
     res.status(500).json({ error: "Error retrieving user details." });
+  }
+};
+
+//Update a user information
+exports.updateUser = async (req, res) => {
+  const { id } = req.params; // User ID to update
+  const {
+    firstname,
+    lastname,
+    phone,
+    address,
+    statesCovered,
+    name,
+    additionalEmail,
+    industryId, // Expecting industryId for CLIENT_AGENCY_USER
+  } = req.body;
+
+  try {
+    // Fetch the user to update
+    const userToUpdate = await prisma.user.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!userToUpdate) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // Ensure only Super Admin or Chief Account Manager can perform updates
+    if (
+      req.user.role !== "SUPER_ADMIN" &&
+      req.user.role !== "CHIEF_ACCOUNT_MANAGER"
+    ) {
+      return res
+        .status(403)
+        .json({ error: "You do not have permission to update this user." });
+    }
+
+    // Role-specific validations
+    if (userToUpdate.role === "FIELD_AUDITOR") {
+      if (
+        !firstname ||
+        !lastname ||
+        !Array.isArray(statesCovered) ||
+        statesCovered.length === 0
+      ) {
+        return res.status(400).json({
+          error:
+            "Firstname, lastname, and statesCovered (array of state IDs) are required for Field Auditor role.",
+        });
+      }
+
+      // Validate state IDs
+      const validStates = await prisma.state.findMany({
+        where: { id: { in: statesCovered } },
+      });
+
+      if (validStates.length !== statesCovered.length) {
+        return res.status(400).json({
+          error: "Some provided state IDs are invalid.",
+        });
+      }
+    }
+
+    if (userToUpdate.role === "CLIENT_AGENCY_USER") {
+      if (!name) {
+        return res.status(400).json({
+          error: "Name is required for Client/Agency User role.",
+        });
+      }
+
+      if (!Array.isArray(additionalEmail)) {
+        return res.status(400).json({
+          error: "Additional email must be an array.",
+        });
+      }
+
+      if (additionalEmail.length > 2) {
+        return res.status(400).json({
+          error: "Additional email array can only contain up to 2 emails.",
+        });
+      }
+
+      if (!additionalEmail.every((email) => /^\S+@\S+\.\S+$/.test(email))) {
+        return res.status(400).json({
+          error: "All additional emails must be valid email addresses.",
+        });
+      }
+
+      // Validate industry ID
+      if (!industryId) {
+        return res.status(400).json({
+          error: "Industry ID is required for Client/Agency User role.",
+        });
+      }
+
+      const industryExists = await prisma.industry.findUnique({
+        where: { id: industryId },
+      });
+
+      if (!industryExists) {
+        return res.status(400).json({
+          error: "Provided industry ID does not exist.",
+        });
+      }
+    }
+
+    // Update the user
+    const updatedUser = await prisma.user.update({
+      where: { id: parseInt(id) },
+      data: {
+        firstname:
+          userToUpdate.role === "CLIENT_AGENCY_USER" ? undefined : firstname,
+        lastname:
+          userToUpdate.role === "CLIENT_AGENCY_USER" ? undefined : lastname,
+        phone,
+        address,
+        statesCovered:
+          userToUpdate.role === "FIELD_AUDITOR"
+            ? { set: statesCovered.map((id) => ({ id })) }
+            : undefined,
+        name: userToUpdate.role === "CLIENT_AGENCY_USER" ? name : undefined,
+        additionalEmail:
+          userToUpdate.role === "CLIENT_AGENCY_USER"
+            ? additionalEmail
+            : undefined,
+        industryId:
+          userToUpdate.role === "CLIENT_AGENCY_USER" ? industryId : undefined,
+      },
+    });
+
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ error: "Error updating user." });
   }
 };
