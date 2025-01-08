@@ -287,7 +287,7 @@ exports.getUser = async (req, res) => {
         id: true,
         firstname: true,
         lastname: true,
-        name: true,
+        advertiserId: true,
         email: true,
         phone: true,
         address: true,
