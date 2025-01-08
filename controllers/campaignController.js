@@ -67,243 +67,6 @@ const parseSiteList = (filePath) => {
   return { duplicates, data: siteData };
 };
 
-// // Create a new Campaign
-// exports.createCampaign = async (req, res) => {
-//   const { clientId, accountManagerId, proceedWithDuplicates } = req.body;
-
-//   if (!clientId || !accountManagerId) {
-//     return res
-//       .status(400)
-//       .json("Client ID and Account Manager ID are required.");
-//   }
-
-//   if (!req.file) {
-//     return res.status(400).json("A site list file is required.");
-//   }
-
-//   try {
-//     // Validate client and account manager
-//     const client = await prisma.user.findUnique({
-//       where: { id: parseInt(clientId), role: "CLIENT_AGENCY_USER" },
-//     });
-//     const accountManager = await prisma.user.findUnique({
-//       where: { id: parseInt(accountManagerId), role: "ACCOUNT_MANAGER" },
-//     });
-
-//     if (!client) {
-//       return res.status(404).json("Client not found.");
-//     }
-//     if (!accountManager) {
-//       return res.status(404).json("Account Manager not found.");
-//     }
-
-//     // Parse the uploaded file
-//     const { duplicates, data, error } = parseSiteList(req.file.path);
-
-//     if (error) {
-//       return res.status(400).json(error); // Handle missing columns
-//     }
-
-//     if (duplicates.length > 0 && !proceedWithDuplicates) {
-//       return res.status(400).json({
-//         message: "Duplicate board locations found.",
-//         duplicates,
-//         prompt: "Would you like to proceed with the upload?",
-//       });
-//     }
-
-//     // Create the campaign
-//     const campaign = await prisma.campaign.create({
-//       data: {
-//         clientId: parseInt(clientId),
-//         accountManagerId: parseInt(accountManagerId),
-//         siteList: data,
-//         uploadedAt: new Date(),
-//         totalSites: data.length,
-//       },
-//     });
-
-//     // Distribute sites to field auditors based on states covered
-//     const fieldAuditors = await prisma.user.findMany({
-//       where: { role: "FIELD_AUDITOR" },
-//       select: { id: true, statesCovered: true },
-//     });
-
-//     const siteAssignments = [];
-//     const stateAuditorMap = {};
-
-//     // Map auditors to states they cover
-//     for (const auditor of fieldAuditors) {
-//       for (const state of auditor.statesCovered) {
-//         const normalizedState = state.trim().toLowerCase();
-//         if (!stateAuditorMap[normalizedState]) {
-//           stateAuditorMap[normalizedState] = [];
-//         }
-//         stateAuditorMap[normalizedState].push(auditor.id);
-//       }
-//     }
-
-//     // Assign sites to auditors evenly
-//     for (const [index, site] of data.entries()) {
-//       const state = site.state.trim().toLowerCase();
-//       const auditors = stateAuditorMap[state];
-
-//       if (auditors && auditors.length > 0) {
-//         // Distribute sites evenly among auditors for the state
-//         const auditorId = auditors[index % auditors.length];
-//         siteAssignments.push({
-//           campaignId: campaign.id,
-//           siteCode: site.code || `CODE-${Date.now()}-${index + 1}`, // Autogenerate code if empty
-//           fieldAuditorId: auditorId,
-//         });
-//       } else {
-//         // Skip allocation if no auditors for the state
-//         console.warn(`No auditors found for state: ${state}`);
-//       }
-//     }
-
-//     // Save site assignments in the database
-//     await prisma.siteAssignment.createMany({
-//       data: siteAssignments,
-//     });
-
-//     res.status(201).json({
-//       message: "Campaign created and sites assigned to field auditors.",
-//       campaign,
-//       siteAssignments,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: "Error creating campaign." });
-//   }
-// };
-
-// //View a campaign
-// exports.viewCampaign = async (req, res) => {
-//   const { id } = req.params;
-
-//   try {
-//     const campaign = await prisma.campaign.findUnique({
-//       where: { id: parseInt(id) },
-//       include: {
-//         client: true,
-//         accountManager: true,
-//       },
-//     });
-
-//     if (!campaign) {
-//       return res.status(404).json("Campaign not found.");
-//     }
-
-//     // Check user permissions
-//     if (
-//       req.user.role === "ACCOUNT_MANAGER" &&
-//       campaign.accountManagerId !== req.user.id
-//     ) {
-//       return res
-//         .status(403)
-//         .json(
-//           "Permission Denied: You can only access your assigned campaigns."
-//         );
-//     }
-
-//     if (
-//       req.user.role === "CHIEF_ACCOUNT_MANAGER" ||
-//       req.user.role === "SUPER_ADMIN" ||
-//       (req.user.role === "ACCOUNT_MANAGER" &&
-//         campaign.accountManagerId === req.user.id)
-//     ) {
-//       return res.status(200).json({
-//         campaign,
-//         siteList: campaign.siteList,
-//       });
-//     } else {
-//       return res
-//         .status(403)
-//         .json(
-//           "Permission Denied: Only authorized users can access this campaign."
-//         );
-//     }
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: "Error retrieving campaign." });
-//   }
-// };
-
-// // Fetch Campaigns Based on Role
-// exports.fetchCampaigns = async (req, res) => {
-//   try {
-//     const { role, id: userId } = req.user;
-
-//     let campaigns;
-
-//     if (role === "SUPER_ADMIN" || role === "CHIEF_ACCOUNT_MANAGER") {
-//       // Fetch all campaigns for SUPER_ADMIN and CHIEF_ACCOUNT_MANAGER
-//       campaigns = await prisma.campaign.findMany({
-//         include: {
-//           client: {
-//             select: {
-//               id: true,
-//               firstname: true,
-//               lastname: true,
-//               email: true,
-//             },
-//           },
-//           accountManager: {
-//             select: {
-//               id: true,
-//               firstname: true,
-//               lastname: true,
-//               email: true,
-//             },
-//           },
-//         },
-//       });
-//     } else if (role === "ACCOUNT_MANAGER") {
-//       // Fetch campaigns assigned to the ACCOUNT_MANAGER
-//       campaigns = await prisma.campaign.findMany({
-//         where: { accountManagerId: userId },
-//         include: {
-//           client: {
-//             select: {
-//               id: true,
-//               firstname: true,
-//               lastname: true,
-//               email: true,
-//             },
-//           },
-//           accountManager: {
-//             select: {
-//               id: true,
-//               firstname: true,
-//               lastname: true,
-//               email: true,
-//             },
-//           },
-//         },
-//       });
-//     } else {
-//       // Unauthorized access
-//       return res
-//         .status(403)
-//         .json(
-//           "Permission Denied: You are not authorized to access this resource."
-//         );
-//     }
-
-//     // Return the campaigns with their siteList
-//     const campaignsWithSiteList = campaigns.map((campaign) => ({
-//       ...campaign,
-//       siteList: campaign.siteList, // Include siteList JSON
-//     }));
-
-//     res.status(200).json(campaignsWithSiteList);
-//   } catch (error) {
-//     console.error("Error fetching campaigns:", error);
-//     res.status(500).json({ error: "Error fetching campaigns." });
-//   }
-// };
-
 // Create a new Campaign
 exports.createCampaign = async (req, res) => {
   const { clientId, accountManagerId, proceedWithDuplicates } = req.body;
@@ -363,7 +126,11 @@ exports.createCampaign = async (req, res) => {
     // Distribute sites to field auditors based on states covered
     const fieldAuditors = await prisma.user.findMany({
       where: { role: "FIELD_AUDITOR" },
-      select: { id: true, statesCovered: true },
+      include: {
+        statesCovered: {
+          select: { name: true }, // Retrieve state names
+        },
+      },
     });
 
     const siteAssignments = [];
@@ -372,7 +139,7 @@ exports.createCampaign = async (req, res) => {
     // Map auditors to states they cover
     for (const auditor of fieldAuditors) {
       for (const state of auditor.statesCovered) {
-        const normalizedState = state.trim().toLowerCase();
+        const normalizedState = state.name.trim().toLowerCase();
         if (!stateAuditorMap[normalizedState]) {
           stateAuditorMap[normalizedState] = [];
         }
@@ -382,7 +149,7 @@ exports.createCampaign = async (req, res) => {
 
     // Assign sites to auditors evenly
     for (const [index, site] of data.entries()) {
-      const state = site.state.trim().toLowerCase();
+      const state = site.state ? site.state.trim().toLowerCase() : "";
       const auditors = stateAuditorMap[state];
 
       if (auditors && auditors.length > 0) {

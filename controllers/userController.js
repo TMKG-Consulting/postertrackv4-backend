@@ -148,7 +148,8 @@ exports.createUser = async (req, res) => {
     if (role === "CLIENT_AGENCY_USER") {
       if (!name) {
         return res.status(400).json({
-          error: "Name is required for Client/Agency User role.",
+          error:
+            "Name (Advertiser ID) is required for Client/Agency User role.",
         });
       }
 
@@ -167,6 +168,17 @@ exports.createUser = async (req, res) => {
       if (!additionalEmail.every((email) => /^\S+@\S+\.\S+$/.test(email))) {
         return res.status(400).json({
           error: "All additional emails must be valid email addresses.",
+        });
+      }
+
+      // Validate advertiser ID
+      const advertiserExists = await prisma.advertiser.findUnique({
+        where: { id: name },
+      });
+
+      if (!advertiserExists) {
+        return res.status(400).json({
+          error: "Provided Advertiser ID does not exist.",
         });
       }
 
@@ -206,7 +218,7 @@ exports.createUser = async (req, res) => {
           role === "FIELD_AUDITOR"
             ? { connect: statesCovered.map((id) => ({ id })) }
             : undefined,
-        name: role === "CLIENT_AGENCY_USER" ? name : undefined,
+        advertiserId: role === "CLIENT_AGENCY_USER" ? name : undefined,
         additionalEmail:
           role === "CLIENT_AGENCY_USER" ? additionalEmail : undefined,
         industryId: role === "CLIENT_AGENCY_USER" ? industryId : undefined,
@@ -247,7 +259,7 @@ exports.fetchAllUsers = async (req, res) => {
         id: true,
         firstname: true,
         lastname: true,
-        name: true,
+        advertiserId: true,
         email: true,
         phone: true,
         address: true,
