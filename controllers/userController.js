@@ -1,8 +1,11 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const { Storage } = require("@google-cloud/storage");
+const path = require("path");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const { paginate } = require("../Helpers/paginate");
 
 // Email configuration
 const transporter = nodemailer.createTransport({
@@ -182,6 +185,17 @@ exports.createUser = async (req, res) => {
         });
       }
 
+      // Check if advertiser already has a user account
+      const advertiserUserExists = await prisma.user.findFirst({
+        where: { advertiserId: name },
+      });
+
+      if (advertiserUserExists) {
+        return res.status(400).json({
+          error: "An account already exists for this advertiser.",
+        });
+      }
+
       // Validate industry ID
       if (!industryId) {
         return res.status(400).json({
@@ -291,6 +305,7 @@ exports.getUser = async (req, res) => {
         email: true,
         phone: true,
         address: true,
+        profilePicture: true,
         role: true,
       },
     });
@@ -307,6 +322,44 @@ exports.getUser = async (req, res) => {
 };
 
 //Update a user information
+// Initialize Google Cloud Storage with environment-based credentials
+const storage = new Storage({
+  projectId: process.env.GCLOUD_PROJECT_ID,
+  credentials: {
+    client_email: process.env.GCLOUD_CLIENT_EMAIL,
+    private_key: process.env.GCLOUD_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  },
+});
+const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
+
+// Function to upload to GCS
+const uploadToGCS = async (file) => {
+  return new Promise((resolve, reject) => {
+    const blob = bucket.file(Date.now() + path.extname(file.originalname)); // Create a unique filename
+    const blobStream = blob.createWriteStream({
+      resumable: false,
+      contentType: file.mimetype, // Ensure the correct content type
+    });
+
+    blobStream.on("error", (err) => {
+      reject(err);
+    });
+
+    blobStream.on("finish", () => {
+      blob
+        .makePublic()
+        .then(() => {
+          const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
+          resolve(publicUrl);
+        })
+        .catch((err) => reject(err));
+    });
+
+    // Write the file buffer to GCS
+    blobStream.end(file.buffer);
+  });
+};
+
 exports.updateUser = async (req, res) => {
   const { id } = req.params; // User ID to update
   const {
@@ -317,7 +370,7 @@ exports.updateUser = async (req, res) => {
     statesCovered,
     name,
     additionalEmail,
-    industryId, // Expecting industryId for CLIENT_AGENCY_USER
+    industryId,
   } = req.body;
 
   try {
@@ -339,6 +392,9 @@ exports.updateUser = async (req, res) => {
         .status(403)
         .json({ error: "You do not have permission to update this user." });
     }
+
+    // Upload image to Google Cloud Storage using the file buffer
+    const publicUrl = await uploadToGCS(req.file);
 
     // Role-specific validations
     if (userToUpdate.role === "FIELD_AUDITOR") {
@@ -419,6 +475,7 @@ exports.updateUser = async (req, res) => {
           userToUpdate.role === "CLIENT_AGENCY_USER" ? undefined : lastname,
         phone,
         address,
+        profilePicture: publicUrl,
         statesCovered:
           userToUpdate.role === "FIELD_AUDITOR"
             ? { set: statesCovered.map((id) => ({ id })) }
@@ -437,5 +494,77 @@ exports.updateUser = async (req, res) => {
   } catch (error) {
     console.error("Error updating user:", error);
     res.status(500).json({ error: "Error updating user." });
+  }
+};
+
+//Get all account managers
+exports.getAccountManagers = async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+
+  try {
+    const { data, total, totalPages } = await paginate(
+      prisma.user,
+      parseInt(page),
+      parseInt(limit),
+      { role: "ACCOUNT_MANAGER" } // Filter by role
+    );
+
+    res.status(200).json({
+      data,
+      total,
+      totalPages,
+      currentPage: parseInt(page),
+    });
+  } catch (error) {
+    console.error("Error fetching account managers:", error);
+    res.status(500).json({ error: "Error fetching account managers." });
+  }
+};
+
+//Get all field auditors
+exports.getFieldAuditors = async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+
+  try {
+    const { data, total, totalPages } = await paginate(
+      prisma.user,
+      parseInt(page),
+      parseInt(limit),
+      { role: "FIELD_AUDITOR" } // Filter by role
+    );
+
+    res.status(200).json({
+      data,
+      total,
+      totalPages,
+      currentPage: parseInt(page),
+    });
+  } catch (error) {
+    console.error("Error fetching field auditors:", error);
+    res.status(500).json({ error: "Error fetching field auditors." });
+  }
+};
+
+//Get all clients
+exports.getClients = async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+
+  try {
+    const { data, total, totalPages } = await paginate(
+      prisma.user,
+      parseInt(page),
+      parseInt(limit),
+      { role: "CLIENT_AGENCY_USER" } // Filter by role
+    );
+
+    res.status(200).json({
+      data,
+      total,
+      totalPages,
+      currentPage: parseInt(page),
+    });
+  } catch (error) {
+    console.error("Error fetching clients:", error);
+    res.status(500).json({ error: "Error fetching clients." });
   }
 };

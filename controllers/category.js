@@ -1,5 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const { paginate } = require("../Helpers/paginate");
 
 //Create a category
 exports.createCategory = async (req, res) => {
@@ -19,10 +20,61 @@ exports.createCategory = async (req, res) => {
 
 //Get All Categories
 exports.getCategory = async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+
   try {
-    const categories = await prisma.category.findMany();
-    res.json(categories);
-  } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    const { data, total, totalPages } = await paginate(
+      prisma.category,
+      parseInt(page),
+      parseInt(limit)
+    );
+
+    res.status(200).json({
+      data,
+      total,
+      totalPages,
+      currentPage: parseInt(page),
+    });
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    res.status(500).json({ error: "Error fetching categories." });
+  }
+};
+
+//Update a Category
+exports.editCategory = async (req, res) => {
+  const { id } = req.params; // Category ID
+  const { name } = req.body; // Fields to update
+
+  try {
+    const updatedCategory = await prisma.category.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+      },
+    });
+
+    res
+      .status(200)
+      .json({ message: "Category updated successfully", updatedCategory });
+  } catch (error) {
+    console.error("Error updating category:", error);
+    res.status(500).json({ error: "Error updating category." });
+  }
+};
+
+//Delete a Category
+exports.deleteCategory = async (req, res) => {
+  const { id } = req.params; // Category ID
+
+  try {
+    await prisma.category.delete({
+      where: { id: parseInt(id) },
+    });
+
+    res.status(200).json({ message: "Category deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting category:", error);
+    res.status(500).json({ error: "Error deleting category." });
   }
 };

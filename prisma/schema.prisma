@@ -32,6 +32,10 @@ model User {
   campaignsAsClient        Campaign[] @relation("ClientRelation")
   campaignsAsAccountManager Campaign[] @relation("AccountManagerRelation")
   siteAssignments          SiteAssignment[] @relation("FieldAuditorRelation")
+  status          Boolean   @default(true)
+  profilePicture  String?   @default("https://storage.googleapis.com/postertrack-bucket-images/user.png")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model Industry {
@@ -111,7 +115,8 @@ model Brand {
   id           Int        @id @default(autoincrement())
   name         String
   advertiserId Int
-  categoryId   Int      
+  categoryId   Int 
+  logo        String?      
   advertiser   Advertiser  @relation(fields: [advertiserId], references: [id])
   category     Category @relation(fields: [categoryId], references: [id])
 }
