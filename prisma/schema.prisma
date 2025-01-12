@@ -44,6 +44,13 @@ model Industry {
   users User[]
 }
 
+model Advertiser {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  brands   Brand[]
+  users    User[]
+}
+
 model Campaign {
   id               Int       @id @default(autoincrement())
   clientId         Int
@@ -96,13 +103,6 @@ model City {
   name    String
   stateId Int
   state   State   @relation(fields: [stateId], references: [id])
-}
-
-model Advertiser {
-  id       Int      @id @default(autoincrement())
-  name     String   @unique
-  brands   Brand[]
-  users    User[]
 }
 
 model Category {

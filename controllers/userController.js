@@ -6,6 +6,7 @@ const path = require("path");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { paginate } = require("../Helpers/paginate");
+const { log } = require("console");
 
 // Email configuration
 const transporter = nodemailer.createTransport({
@@ -556,9 +557,25 @@ exports.getClients = async (req, res) => {
       prisma.user,
       parseInt(page),
       parseInt(limit),
-      { role: "CLIENT_AGENCY_USER" }, // Filter by role
-      { include: { advertiser: true, industry: true } } // Populate related data
+      {
+        role: "CLIENT_AGENCY_USER", // Filter by role
+      },
+      {
+        advertiser: true, // Include Advertiser data
+        industry: true, // Include Industry data
+      }
     );
+
+    // const clients = await prisma.user.findMany({
+    //   where: { role: "CLIENT_AGENCY_USER" },
+    //   include: {
+    //     advertiser: true, // Include Advertiser data
+    //     industry: true, // Include Industry data
+    //   },
+    // });
+
+    // console.log(clients);
+    
 
     res.status(200).json({
       data,
