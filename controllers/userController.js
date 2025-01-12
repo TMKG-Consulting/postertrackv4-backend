@@ -506,7 +506,9 @@ exports.getAccountManagers = async (req, res) => {
       prisma.user,
       parseInt(page),
       parseInt(limit),
-      { role: "ACCOUNT_MANAGER" } // Filter by role
+      {
+        OR: [{ role: "ACCOUNT_MANAGER" }, { role: "CHIEF_ACCOUNT_MANAGER" }],
+      } // Filter by both roles
     );
 
     res.status(200).json({
