@@ -554,7 +554,8 @@ exports.getClients = async (req, res) => {
       prisma.user,
       parseInt(page),
       parseInt(limit),
-      { role: "CLIENT_AGENCY_USER" } // Filter by role
+      { role: "CLIENT_AGENCY_USER" }, // Filter by role
+      { include: { advertiser: true, industry: true } } // Populate related data
     );
 
     res.status(200).json({
