@@ -82,19 +82,27 @@ exports.createCampaign = async (req, res) => {
   }
 
   try {
-    // Validate client and account manager
+    // Validate client
     const client = await prisma.user.findUnique({
       where: { id: parseInt(clientId), role: "CLIENT_AGENCY_USER" },
-    });
-    const accountManager = await prisma.user.findUnique({
-      where: { id: parseInt(accountManagerId), role: "ACCOUNT_MANAGER" },
     });
 
     if (!client) {
       return res.status(404).json({ error: "Client not found." });
     }
+
+    // Validate account manager (include both roles)
+    const accountManager = await prisma.user.findUnique({
+      where: {
+        id: parseInt(accountManagerId),
+        OR: [{ role: "ACCOUNT_MANAGER" }, { role: "CHIEF_ACCOUNT_MANAGER" }],
+      },
+    });
+
     if (!accountManager) {
-      return res.status(404).json({ error: "Account Manager not found." });
+      return res
+        .status(404)
+        .json({ error: "Account Manager or Chief Account Manager not found." });
     }
 
     // Parse the uploaded file
