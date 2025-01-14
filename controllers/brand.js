@@ -57,36 +57,45 @@ exports.createBrand = async (req, res) => {
 //Get All Brands for an Advertiser
 exports.getBrands = async (req, res) => {
   const { advertiserId } = req.params;
-  const { page = 1, limit = 10 } = req.query; // Default to page 1 and limit 10
+  const { page = 1, limit = 10 } = req.query;
 
   try {
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Validate advertiserId
+    const parsedAdvertiserId = parseInt(advertiserId);
+    if (isNaN(parsedAdvertiserId)) {
+      return res.status(400).json({ error: "Invalid advertiser ID." });
+    }
 
-    // Fetch paginated brands
-    const [brands, total] = await Promise.all([
-      prisma.brand.findMany({
-        where: { advertiserId: parseInt(advertiserId) },
-        include: {
-          advertiser: true, // Include Advertiser data
-          category: true, // Include Category data
-        },
-        skip,
-        take: parseInt(limit),
-      }),
-      prisma.brand.count({
-        where: { advertiserId: parseInt(advertiserId) },
-      }),
-    ]);
+    // Use the paginate function
+    const { data, total, totalPages } = await paginate(
+      prisma.brand,
+      parseInt(page),
+      parseInt(limit),
+      {
+        advertiserId: parsedAdvertiserId,
+      },
+      {
+        advertiser: true, // Populate Advertiser data
+        category: true, // Populate Category data
+      }
+    );
 
-    res.json({
-      data: brands,
+    // Check if no brands were found
+    if (data.length === 0) {
+      return res.status(404).json({
+        error: "No brands found for the specified advertiser ID.",
+      });
+    }
+
+    res.status(200).json({
+      data,
       total,
-      totalPages: Math.ceil(total / limit),
+      totalPages,
       currentPage: parseInt(page),
     });
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
-    console.error(err);
+    console.error("Error fetching brands:", err);
+    res.status(500).json({ error: "Server error." });
   }
 };
 
@@ -95,14 +104,25 @@ exports.getAllBrands = async (req, res) => {
   const { page = 1, limit = 10 } = req.query;
 
   try {
-    const { data, total, totalPages } = await paginate(
-      prisma.brand,
-      parseInt(page),
-      parseInt(limit)
-    );
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch paginated data with relationships
+    const [brands, total] = await Promise.all([
+      prisma.brand.findMany({
+        skip,
+        take: parseInt(limit),
+        include: {
+          advertiser: true, // Populate Advertiser data
+          category: true, // Populate Category data
+        },
+      }),
+      prisma.brand.count(), // Only count the total number of brands
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
 
     res.status(200).json({
-      data,
+      data: brands,
       total,
       totalPages,
       currentPage: parseInt(page),

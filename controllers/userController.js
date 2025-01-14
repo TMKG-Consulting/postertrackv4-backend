@@ -361,6 +361,7 @@ const uploadToGCS = async (file) => {
   });
 };
 
+//Update User Account
 exports.updateUser = async (req, res) => {
   const { id } = req.params; // User ID to update
   const {
@@ -384,18 +385,11 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ error: "User not found." });
     }
 
-    // Ensure only Super Admin or Chief Account Manager can perform updates
-    if (
-      req.user.role !== "SUPER_ADMIN" &&
-      req.user.role !== "CHIEF_ACCOUNT_MANAGER"
-    ) {
-      return res
-        .status(403)
-        .json({ error: "You do not have permission to update this user." });
+    // Upload image to Google Cloud Storage using the file buffer (if provided)
+    let publicUrl = userToUpdate.profilePicture;
+    if (req.file) {
+      publicUrl = await uploadToGCS(req.file);
     }
-
-    // Upload image to Google Cloud Storage using the file buffer
-    const publicUrl = await uploadToGCS(req.file);
 
     // Role-specific validations
     if (userToUpdate.role === "FIELD_AUDITOR") {
@@ -498,6 +492,7 @@ exports.updateUser = async (req, res) => {
   }
 };
 
+
 //Get all account managers
 exports.getAccountManagers = async (req, res) => {
   const { page = 1, limit = 10 } = req.query;
@@ -565,16 +560,6 @@ exports.getClients = async (req, res) => {
         industry: true, // Include Industry data
       }
     );
-
-    // const clients = await prisma.user.findMany({
-    //   where: { role: "CLIENT_AGENCY_USER" },
-    //   include: {
-    //     advertiser: true, // Include Advertiser data
-    //     industry: true, // Include Industry data
-    //   },
-    // });
-
-    // console.log(clients);
     
 
     res.status(200).json({
