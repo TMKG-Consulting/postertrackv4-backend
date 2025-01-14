@@ -528,7 +528,8 @@ exports.getFieldAuditors = async (req, res) => {
       prisma.user,
       parseInt(page),
       parseInt(limit),
-      { role: "FIELD_AUDITOR" } // Filter by role
+      { role: "FIELD_AUDITOR" }, // Filter by role
+      {statesCovered: true}
     );
 
     res.status(200).json({

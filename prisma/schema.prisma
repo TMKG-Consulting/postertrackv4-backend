@@ -53,6 +53,7 @@ model Advertiser {
 
 model Campaign {
   id               Int       @id @default(autoincrement())
+  campaignID       String    @unique
   clientId         Int
   accountManagerId Int
   siteList         Json

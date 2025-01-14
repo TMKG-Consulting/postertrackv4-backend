@@ -1,6 +1,7 @@
 const xlsx = require("xlsx");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const { campaignPaginate } = require("../Helpers/paginate");
 
 // Function to parse uploaded file and check for duplicates
 const parseSiteList = (filePath) => {
@@ -120,9 +121,24 @@ exports.createCampaign = async (req, res) => {
       });
     }
 
+    // Generate a unique 5-digit campaignID
+    let campaignID;
+    let isUnique = false;
+
+    while (!isUnique) {
+      campaignID = Math.floor(10000 + Math.random() * 90000).toString(); // Generate 5-digit ID
+      const existingCampaign = await prisma.campaign.findUnique({
+        where: { campaignID },
+      });
+      if (!existingCampaign) {
+        isUnique = true;
+      }
+    }
+
     // Create the campaign
     const campaign = await prisma.campaign.create({
       data: {
+        campaignID, // Use the generated campaignID
         clientId: parseInt(clientId),
         accountManagerId: parseInt(accountManagerId),
         siteList: data,
@@ -243,54 +259,14 @@ exports.viewCampaign = async (req, res) => {
 exports.fetchCampaigns = async (req, res) => {
   try {
     const { role, id: userId } = req.user;
+    const { page = 1, limit = 10 } = req.query;
 
-    let campaigns;
-
+    // Define role-based filters
+    let whereClause = {};
     if (role === "SUPER_ADMIN" || role === "CHIEF_ACCOUNT_MANAGER") {
-      // Fetch all campaigns for SUPER_ADMIN and CHIEF_ACCOUNT_MANAGER
-      campaigns = await prisma.campaign.findMany({
-        include: {
-          client: {
-            select: {
-              id: true,
-              firstname: true,
-              lastname: true,
-              email: true,
-            },
-          },
-          accountManager: {
-            select: {
-              id: true,
-              firstname: true,
-              lastname: true,
-              email: true,
-            },
-          },
-        },
-      });
+      whereClause = {}; // No filter for these roles
     } else if (role === "ACCOUNT_MANAGER") {
-      // Fetch campaigns assigned to the ACCOUNT_MANAGER
-      campaigns = await prisma.campaign.findMany({
-        where: { accountManagerId: userId },
-        include: {
-          client: {
-            select: {
-              id: true,
-              firstname: true,
-              lastname: true,
-              email: true,
-            },
-          },
-          accountManager: {
-            select: {
-              id: true,
-              firstname: true,
-              lastname: true,
-              email: true,
-            },
-          },
-        },
-      });
+      whereClause = { accountManagerId: userId }; // Filter for ACCOUNT_MANAGER
     } else {
       // Unauthorized access
       return res.status(403).json({
@@ -299,13 +275,45 @@ exports.fetchCampaigns = async (req, res) => {
       });
     }
 
-    // Return the campaigns with their siteList
+    // Use the updated paginate function
+    const {
+      data: campaigns,
+      total,
+      totalPages,
+    } = await campaignPaginate(prisma.campaign, parseInt(page), parseInt(limit), {
+      where: whereClause,
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+          },
+        },
+        accountManager: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Include siteList for campaigns
     const campaignsWithSiteList = campaigns.map((campaign) => ({
       ...campaign,
       siteList: campaign.siteList, // Include siteList JSON
     }));
 
-    res.status(200).json(campaignsWithSiteList);
+    res.status(200).json({
+      data: campaignsWithSiteList,
+      total,
+      totalPages,
+      currentPage: parseInt(page),
+    });
   } catch (error) {
     console.error("Error fetching campaigns:", error);
     res.status(500).json({ error: "Error fetching campaigns." });
