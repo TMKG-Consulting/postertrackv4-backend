@@ -71,7 +71,7 @@ model SiteAssignment {
   campaignId     Int
   siteCode       String
   fieldAuditorId Int
-
+  status         String    @default("pending")
   campaign       Campaign  @relation("CampaignRelation", fields: [campaignId], references: [id])
   fieldAuditor   User      @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
 }

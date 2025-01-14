@@ -121,24 +121,28 @@ exports.createCampaign = async (req, res) => {
       });
     }
 
-    // Generate a unique 5-digit campaignID
+    // Auto-generate campaignID (5-digit code)
+    const generateCampaignID = () => {
+      const randomCode = Math.floor(10000 + Math.random() * 90000);
+      return `CMP-${randomCode}`;
+    };
+
     let campaignID;
     let isUnique = false;
 
+    // Ensure campaignID is unique
     while (!isUnique) {
-      campaignID = Math.floor(10000 + Math.random() * 90000).toString(); // Generate 5-digit ID
+      campaignID = generateCampaignID();
       const existingCampaign = await prisma.campaign.findUnique({
         where: { campaignID },
       });
-      if (!existingCampaign) {
-        isUnique = true;
-      }
+      isUnique = !existingCampaign;
     }
 
     // Create the campaign
     const campaign = await prisma.campaign.create({
       data: {
-        campaignID, // Use the generated campaignID
+        campaignID, // Auto-generated ID
         clientId: parseInt(clientId),
         accountManagerId: parseInt(accountManagerId),
         siteList: data,
@@ -183,6 +187,7 @@ exports.createCampaign = async (req, res) => {
           campaignId: campaign.id,
           siteCode: site.code || `CODE-${Date.now()}-${index + 1}`, // Autogenerate code if empty
           fieldAuditorId: auditorId,
+          status: "pending", // Initialize status as pending
         });
       } else {
         console.warn(`No auditors found for state: ${state}`);
@@ -280,36 +285,44 @@ exports.fetchCampaigns = async (req, res) => {
       data: campaigns,
       total,
       totalPages,
-    } = await campaignPaginate(prisma.campaign, parseInt(page), parseInt(limit), {
-      where: whereClause,
-      include: {
-        client: {
-          select: {
-            id: true,
-            firstname: true,
-            lastname: true,
-            email: true,
+    } = await campaignPaginate(
+      prisma.campaign,
+      parseInt(page),
+      parseInt(limit),
+      {
+        where: whereClause,
+        include: {
+          client: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+              email: true,
+            },
+          },
+          accountManager: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+              email: true,
+            },
+          },
+          siteAssignments: {
+            select: {
+              id: true,
+              siteCode: true,
+              fieldAuditorId: true,
+              status: true, // Include the status field
+            },
           },
         },
-        accountManager: {
-          select: {
-            id: true,
-            firstname: true,
-            lastname: true,
-            email: true,
-          },
-        },
-      },
-    });
+      }
+    );
 
-    // Include siteList for campaigns
-    const campaignsWithSiteList = campaigns.map((campaign) => ({
-      ...campaign,
-      siteList: campaign.siteList, // Include siteList JSON
-    }));
-
+    // Return the response with site assignments
     res.status(200).json({
-      data: campaignsWithSiteList,
+      data: campaigns,
       total,
       totalPages,
       currentPage: parseInt(page),
@@ -317,5 +330,75 @@ exports.fetchCampaigns = async (req, res) => {
   } catch (error) {
     console.error("Error fetching campaigns:", error);
     res.status(500).json({ error: "Error fetching campaigns." });
+  }
+};
+
+//Site Status update
+exports.updateSiteStatus = async (req, res) => {
+  try {
+    const { siteAssignmentId, status } = req.body;
+    const { role, id: userId } = req.user;
+
+    // Validate input
+    if (!siteAssignmentId || !status) {
+      return res.status(400).json({
+        error: "Site assignment ID and status are required.",
+      });
+    }
+
+    // Validate status value
+    const validStatuses = ["pending", "approved", "disapproved"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: `Invalid status. Allowed values are: ${validStatuses.join(
+          ", "
+        )}`,
+      });
+    }
+
+    // Check if the site assignment exists
+    const siteAssignment = await prisma.siteAssignment.findUnique({
+      where: { id: parseInt(siteAssignmentId) },
+      include: {
+        campaign: {
+          select: { accountManagerId: true },
+        },
+      },
+    });
+
+    if (!siteAssignment) {
+      return res.status(404).json({
+        error: "Site assignment not found.",
+      });
+    }
+
+    // Role-based access control
+    if (role === "ACCOUNT_MANAGER") {
+      if (siteAssignment.campaign.accountManagerId !== userId) {
+        return res.status(403).json({
+          error:
+            "Permission Denied: You can only manage sites in your campaigns.",
+        });
+      }
+    } else if (role !== "SUPER_ADMIN" && role !== "CHIEF_ACCOUNT_MANAGER") {
+      return res.status(403).json({
+        error:
+          "Permission Denied: You are not authorized to approve or disapprove site uploads.",
+      });
+    }
+
+    // Update the site status
+    const updatedSiteAssignment = await prisma.siteAssignment.update({
+      where: { id: parseInt(siteAssignmentId) },
+      data: { status },
+    });
+
+    res.status(200).json({
+      message: "Site status updated successfully.",
+      updatedSiteAssignment,
+    });
+  } catch (error) {
+    console.error("Error updating site status:", error);
+    res.status(500).json({ error: "Error updating site status." });
   }
 };

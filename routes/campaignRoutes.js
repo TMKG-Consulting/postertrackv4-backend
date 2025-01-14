@@ -29,6 +29,14 @@ router.post(
   campaignController.createCampaign
 );
 
+// Update site status
+router.patch(
+  "/updateSiteStatus",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
+  campaignController.updateSiteStatus
+);
+
 router.get(
   "/campaigns/:id",
   authToken,
