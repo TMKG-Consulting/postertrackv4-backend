@@ -224,6 +224,7 @@ exports.viewCampaign = async (req, res) => {
       include: {
         client: true,
         accountManager: true,
+        siteAssignments: true,
       },
     });
 
