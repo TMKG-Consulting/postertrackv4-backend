@@ -370,7 +370,6 @@ exports.updateUser = async (req, res) => {
     phone,
     address,
     statesCovered,
-    name,
     additionalEmail,
     industryId,
   } = req.body;
@@ -418,11 +417,6 @@ exports.updateUser = async (req, res) => {
     }
 
     if (userToUpdate.role === "CLIENT_AGENCY_USER") {
-      if (!name) {
-        return res.status(400).json({
-          error: "Name is required for Client/Agency User role.",
-        });
-      }
 
       if (!Array.isArray(additionalEmail)) {
         return res.status(400).json({
@@ -450,7 +444,7 @@ exports.updateUser = async (req, res) => {
       }
 
       const industryExists = await prisma.industry.findUnique({
-        where: { id: industryId },
+        where: { id: parseInt(industryId) },
       });
 
       if (!industryExists) {
@@ -475,13 +469,12 @@ exports.updateUser = async (req, res) => {
           userToUpdate.role === "FIELD_AUDITOR"
             ? { set: statesCovered.map((id) => ({ id })) }
             : undefined,
-        name: userToUpdate.role === "CLIENT_AGENCY_USER" ? name : undefined,
         additionalEmail:
           userToUpdate.role === "CLIENT_AGENCY_USER"
             ? additionalEmail
             : undefined,
         industryId:
-          userToUpdate.role === "CLIENT_AGENCY_USER" ? industryId : undefined,
+          userToUpdate.role === "CLIENT_AGENCY_USER" ? parseInt(industryId) : undefined,
       },
     });
 
