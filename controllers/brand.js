@@ -57,7 +57,7 @@ exports.createBrand = async (req, res) => {
 //Get All Brands for an Advertiser
 exports.getBrands = async (req, res) => {
   const { advertiserId } = req.params;
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 9 } = req.query;
 
   try {
     // Validate advertiserId
