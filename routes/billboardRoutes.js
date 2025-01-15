@@ -3,6 +3,7 @@ const router = express.Router();
 const advertiserController = require("../controllers/advertiser");
 const brandController = require("../controllers/brand");
 const categoryController = require("../controllers/category");
+const analyticsController = require("../controllers/analyticsController")
 const { authToken, authRole } = require("../middleware/auth");
 
 router.post(
@@ -49,5 +50,7 @@ router.get(
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   brandController.getBrands
 );
+
+router.get('/analytics/overview', authToken, analyticsController.getAnalyticsOverview);
 
 module.exports = router;
