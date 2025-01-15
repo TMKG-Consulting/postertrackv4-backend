@@ -371,6 +371,7 @@ exports.updateUser = async (req, res) => {
     address,
     statesCovered,
     additionalEmail,
+    status,
     industryId,
   } = req.body;
 
@@ -389,6 +390,9 @@ exports.updateUser = async (req, res) => {
     if (req.file) {
       publicUrl = await uploadToGCS(req.file);
     }
+
+    // Convert the status field to a boolean
+    const booleanStatus = status === "true";
 
     // Role-specific validations
     if (userToUpdate.role === "FIELD_AUDITOR") {
@@ -475,6 +479,7 @@ exports.updateUser = async (req, res) => {
             : undefined,
         industryId:
           userToUpdate.role === "CLIENT_AGENCY_USER" ? parseInt(industryId) : undefined,
+        status: booleanStatus
       },
     });
 
