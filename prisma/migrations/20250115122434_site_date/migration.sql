@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "SiteAssignment" ADD COLUMN     "editedAt" TIMESTAMP(3),
+ADD COLUMN     "uploadedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

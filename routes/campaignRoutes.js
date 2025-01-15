@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const campaignController = require("../controllers/campaignController");
+const siteController = require("../controllers/siteController")
 const { authToken, authRole } = require("../middleware/auth");
 
 // Configure Multer for file uploads
@@ -45,5 +46,7 @@ router.get(
 );
 
 router.get("/campaigns", authToken, campaignController.fetchCampaigns);
+
+router.get('/sites/pending-uploads', authToken, siteController.getPendingSiteUploads);
 
 module.exports = router;

@@ -421,7 +421,6 @@ exports.updateUser = async (req, res) => {
     }
 
     if (userToUpdate.role === "CLIENT_AGENCY_USER") {
-
       if (!Array.isArray(additionalEmail)) {
         return res.status(400).json({
           error: "Additional email must be an array.",
@@ -478,8 +477,10 @@ exports.updateUser = async (req, res) => {
             ? additionalEmail
             : undefined,
         industryId:
-          userToUpdate.role === "CLIENT_AGENCY_USER" ? parseInt(industryId) : undefined,
-        status: booleanStatus
+          userToUpdate.role === "CLIENT_AGENCY_USER"
+            ? parseInt(industryId)
+            : undefined,
+        status: booleanStatus,
       },
     });
 
@@ -489,7 +490,6 @@ exports.updateUser = async (req, res) => {
     res.status(500).json({ error: "Error updating user." });
   }
 };
-
 
 //Get all account managers
 exports.getAccountManagers = async (req, res) => {
@@ -527,7 +527,7 @@ exports.getFieldAuditors = async (req, res) => {
       parseInt(page),
       parseInt(limit),
       { role: "FIELD_AUDITOR" }, // Filter by role
-      {statesCovered: true}
+      { statesCovered: true }
     );
 
     res.status(200).json({
@@ -559,7 +559,6 @@ exports.getClients = async (req, res) => {
         industry: true, // Include Industry data
       }
     );
-    
 
     res.status(200).json({
       data,
@@ -570,5 +569,39 @@ exports.getClients = async (req, res) => {
   } catch (error) {
     console.error("Error fetching clients:", error);
     res.status(500).json({ error: "Error fetching clients." });
+  }
+};
+
+exports.searchUsers = async (req, res) => {
+  const { query, status } = req.query; // Extract query and status from request parameters
+
+  try {
+    // Build filter conditions
+    const conditions = {};
+
+    // Add search query condition (for names, email, or phone)
+    if (query) {
+      conditions.OR = [
+        { firstname: { contains: query, mode: "insensitive" } },
+        { lastname: { contains: query, mode: "insensitive" } },
+        { email: { contains: query, mode: "insensitive" } },
+        { phone: { contains: query, mode: "insensitive" } },
+      ];
+    }
+
+    // Add active status filter if provided
+    if (status) {
+      conditions.status = status === "true"; // Convert string to boolean
+    }
+
+    // Fetch filtered users
+    const users = await prisma.user.findMany({
+      where: conditions
+    });
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error searching users:", error);
+    res.status(500).json({ error: "Failed to search users." });
   }
 };

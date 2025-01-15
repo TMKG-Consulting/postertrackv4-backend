@@ -72,6 +72,8 @@ model SiteAssignment {
   siteCode       String
   fieldAuditorId Int
   status         String    @default("pending")
+  uploadedAt       DateTime  @default(now())
+  editedAt         DateTime?
   campaign       Campaign  @relation("CampaignRelation", fields: [campaignId], references: [id])
   fieldAuditor   User      @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
 }
