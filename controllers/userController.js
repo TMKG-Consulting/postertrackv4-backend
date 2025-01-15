@@ -391,8 +391,13 @@ exports.updateUser = async (req, res) => {
       publicUrl = await uploadToGCS(req.file);
     }
 
-    // Convert the status field to a boolean
-    const booleanStatus = status === "true";
+    // Handle the status field: ensure it's a boolean regardless of input type
+    const booleanStatus =
+      status === true || status === "true"
+        ? true
+        : status === false || status === "false"
+        ? false
+        : userToUpdate.status; // Fallback to existing value if invalid
 
     // Role-specific validations
     if (userToUpdate.role === "FIELD_AUDITOR") {
@@ -596,7 +601,7 @@ exports.searchUsers = async (req, res) => {
 
     // Fetch filtered users
     const users = await prisma.user.findMany({
-      where: conditions
+      where: conditions,
     });
 
     res.status(200).json(users);
