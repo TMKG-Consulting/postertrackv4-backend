@@ -298,6 +298,7 @@ exports.fetchCampaigns = async (req, res) => {
               firstname: true,
               lastname: true,
               email: true,
+              advertiser: true,
             },
           },
           accountManager: {
