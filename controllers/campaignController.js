@@ -83,13 +83,16 @@ exports.createCampaign = async (req, res) => {
   }
 
   try {
-    // Validate client
+    // Validate client and fetch the related advertiser
     const client = await prisma.user.findUnique({
-      where: { id: parseInt(clientId), role: "CLIENT_AGENCY_USER" },
+      where: { id: parseInt(clientId) },
+      include: { advertiser: true }, // Include the advertiser relationship
     });
 
-    if (!client) {
-      return res.status(404).json({ error: "Client not found." });
+    if (!client || !client.advertiser || !client.advertiser.name) {
+      return res.status(404).json({
+        error: "Client or associated advertiser not found, or advertiser name is missing.",
+      });
     }
 
     // Validate account manager (include both roles)
@@ -121,27 +124,46 @@ exports.createCampaign = async (req, res) => {
       });
     }
 
-    // Auto-generate campaignID (5-digit code)
-    const generateCampaignID = () => {
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-      let result = "";
-      for (let i = 0; i < 7; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    // Auto-generate campaignID based on client name, current month, and year
+    const generateCampaignID = async () => {
+      const advertiserName = client.advertiser.name.slice(0, 3).toUpperCase(); // First 3 letters of advertiser name
+      const currentDate = new Date();
+      const monthNames = [
+        "JAN",
+        "FEB",
+        "MAR",
+        "APR",
+        "MAY",
+        "JUN",
+        "JUL",
+        "AUG",
+        "SEP",
+        "OCT",
+        "NOV",
+        "DEC",
+      ];
+      const month = monthNames[currentDate.getMonth()];
+      const year = currentDate.getFullYear().toString().slice(-2); // Last 2 digits of year
+
+      const baseCampaignID = `${advertiserName}${month}${year}`;
+      let uniqueID = baseCampaignID;
+
+      // Ensure campaignID is unique by appending a counter if necessary
+      let counter = 1;
+      while (true) {
+        const existingCampaign = await prisma.campaign.findUnique({
+          where: { campaignID: uniqueID },
+        });
+
+        if (!existingCampaign) break; // Unique campaignID found
+        uniqueID = `${baseCampaignID}-${counter}`;
+        counter++;
       }
-      return result;
+
+      return uniqueID;
     };
 
-    let campaignID;
-    let isUnique = false;
-
-    // Ensure campaignID is unique
-    while (!isUnique) {
-      campaignID = generateCampaignID();
-      const existingCampaign = await prisma.campaign.findUnique({
-        where: { campaignID },
-      });
-      isUnique = !existingCampaign;
-    }
+    const campaignID = await generateCampaignID();
 
     // Create the campaign
     const campaign = await prisma.campaign.create({
@@ -213,6 +235,7 @@ exports.createCampaign = async (req, res) => {
     res.status(500).json({ error: "Error creating campaign." });
   }
 };
+
 
 // View a campaign
 exports.viewCampaign = async (req, res) => {
