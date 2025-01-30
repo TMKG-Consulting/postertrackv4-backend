@@ -6,7 +6,6 @@ const path = require("path");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { paginate } = require("../Helpers/paginate");
-const { log } = require("console");
 
 // Email configuration
 const transporter = nodemailer.createTransport({

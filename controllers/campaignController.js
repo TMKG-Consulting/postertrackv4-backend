@@ -3,18 +3,15 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { campaignPaginate } = require("../Helpers/paginate");
 
-// Function to parse uploaded file and check for duplicates
 const parseSiteList = (filePath) => {
   const workbook = xlsx.readFile(filePath);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const data = xlsx.utils.sheet_to_json(sheet, { header: 1 }); // Read as a 2D array
+  const data = xlsx.utils.sheet_to_json(sheet, { header: 1 });
 
-  // Validate if the file has at least one row (headers)
   if (data.length === 0) {
     return { error: "The uploaded file is empty." };
   }
 
-  // Validate the number of columns
   const firstRow = data[0];
   if (firstRow.length !== 7) {
     return {
@@ -22,12 +19,10 @@ const parseSiteList = (filePath) => {
     };
   }
 
-  // Extract board locations for duplicate detection
-  const boardLocations = new Set();
+  const seenLocations = new Map();
   const duplicates = [];
   const siteData = [];
 
-  // Validate rows for duplicates and structure
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
 
@@ -37,21 +32,28 @@ const parseSiteList = (filePath) => {
 
     const [code, state, city, location, mediaOwner, brand, format] = row;
 
-    // Validate that the `code` column is empty
+    if (!location || location.trim() === "") {
+      continue; // Skip rows with empty location values
+    }
+
+    // Check for exact match in the location column only
+    if (seenLocations.has(location)) {
+      const originalRow = seenLocations.get(location) + 1;
+      duplicates.push(
+        `Row ${
+          i + 1
+        }: Duplicate location "${location}" (originally in Row ${originalRow})`
+      );
+    } else {
+      seenLocations.set(location, i);
+    }
+
     if (code && code.trim() !== "") {
       return {
         error: `Row ${i + 1} has a non-empty value in the 'code' column.`,
       };
     }
 
-    // Check for duplicates in the location column (4th column)
-    if (boardLocations.has(location)) {
-      duplicates.push(location);
-    } else {
-      boardLocations.add(location);
-    }
-
-    // Generate a unique code for each site
     const generatedCode = `SITE-${i.toString().padStart(4, "0")}`;
 
     siteData.push({
@@ -91,7 +93,8 @@ exports.createCampaign = async (req, res) => {
 
     if (!client || !client.advertiser || !client.advertiser.name) {
       return res.status(404).json({
-        error: "Client or associated advertiser not found, or advertiser name is missing.",
+        error:
+          "Client or associated advertiser not found, or advertiser name is missing.",
       });
     }
 
@@ -236,6 +239,101 @@ exports.createCampaign = async (req, res) => {
   }
 };
 
+exports.addSitesToCampaign = async (req, res) => {
+  const { campaignId, proceedWithDuplicates } = req.body;
+
+  if (!campaignId) {
+    return res.status(400).json({ error: "Campaign ID is required." });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ error: "A site list file is required." });
+  }
+
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: parseInt(campaignId) },
+    });
+
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found." });
+    }
+
+    const { duplicates, data, error } = parseSiteList(req.file.path);
+
+    if (error) {
+      return res.status(400).json({ error });
+    }
+
+    if (duplicates.length > 0 && !proceedWithDuplicates) {
+      return res.status(400).json({
+        error: "Duplicate board locations found.",
+        duplicates,
+        prompt: "Would you like to proceed with the upload?",
+      });
+    }
+
+    // Update the campaign site list
+    const updatedSiteList = [...campaign.siteList, ...data];
+
+    const updatedCampaign = await prisma.campaign.update({
+      where: { id: campaign.id },
+      data: {
+        siteList: updatedSiteList,
+        totalSites: updatedSiteList.length,
+        editedAt: new Date(),
+      },
+    });
+
+    // Fetch field auditors and map states to auditors
+    const fieldAuditors = await prisma.user.findMany({
+      where: { role: "FIELD_AUDITOR" },
+      include: { statesCovered: { select: { name: true } } },
+    });
+
+    const stateAuditorMap = {};
+
+    for (const auditor of fieldAuditors) {
+      for (const state of auditor.statesCovered) {
+        const normalizedState = state.name.trim().toLowerCase();
+        if (!stateAuditorMap[normalizedState]) {
+          stateAuditorMap[normalizedState] = [];
+        }
+        stateAuditorMap[normalizedState].push(auditor.id);
+      }
+    }
+
+    const siteAssignments = [];
+
+    for (const [index, site] of data.entries()) {
+      const state = site.state ? site.state.trim().toLowerCase() : "";
+      const auditors = stateAuditorMap[state];
+
+      if (auditors && auditors.length > 0) {
+        const auditorId = auditors[index % auditors.length];
+        siteAssignments.push({
+          campaignId: updatedCampaign.id,
+          siteCode: site.code || `CODE-${Date.now()}-${index + 1}`,
+          fieldAuditorId: auditorId,
+          status: "pending",
+        });
+      } else {
+        console.warn(`No auditors found for state: ${state}`);
+      }
+    }
+
+    await prisma.siteAssignment.createMany({ data: siteAssignments });
+
+    res.status(200).json({
+      message: "Sites added to campaign and assigned to field auditors.",
+      updatedCampaign,
+      siteAssignments,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error adding sites to campaign." });
+  }
+};
 
 // View a campaign
 exports.viewCampaign = async (req, res) => {
@@ -359,6 +457,42 @@ exports.fetchCampaigns = async (req, res) => {
   } catch (error) {
     console.error("Error fetching campaigns:", error);
     res.status(500).json({ error: "Error fetching campaigns." });
+  }
+};
+
+exports.deleteCampaign = async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ error: "Campaign ID is required." });
+  }
+
+  try {
+    // Check if the campaign exists
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found." });
+    }
+
+    // Delete related site assignments first (if any)
+    await prisma.siteAssignment.deleteMany({
+      where: { campaignId: campaign.id },
+    });
+
+    // Delete the campaign
+    await prisma.campaign.delete({
+      where: { id: parseInt(id) },
+    });
+
+    res.status(200).json({ message: "Campaign successfully deleted." });
+  } catch (error) {
+    console.error("Error deleting campaign:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while deleting the campaign." });
   }
 };
 

@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const campaignController = require("../controllers/campaignController");
-const siteController = require("../controllers/siteController")
+const siteController = require("../controllers/siteController");
 const { authToken, authRole } = require("../middleware/auth");
 
 // Configure Multer for file uploads
@@ -47,6 +47,25 @@ router.get(
 
 router.get("/campaigns", authToken, campaignController.fetchCampaigns);
 
-router.get('/sites/pending-uploads', authToken, siteController.getPendingSiteUploads);
+router.get(
+  "/sites/pending-uploads",
+  authToken,
+  siteController.getPendingSiteUploads
+);
+
+router.delete(
+  "/campaigns/:id",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
+  campaignController.deleteCampaign
+);
+
+router.post(
+  "/sites/upload",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
+  upload.single("siteList"),
+  campaignController.addSitesToCampaign
+);
 
 module.exports = router;
