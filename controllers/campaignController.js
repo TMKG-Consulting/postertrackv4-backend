@@ -112,6 +112,47 @@ exports.createCampaign = async (req, res) => {
         .json({ error: "Account Manager or Chief Account Manager not found." });
     }
 
+    // Check for existing campaign for the same advertiser in the current month
+    const currentDate = new Date();
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    const currentMonth = currentDate.getMonth(); // Zero-based month
+    const currentYear = currentDate.getFullYear();
+
+    const existingCampaign = await prisma.campaign.findFirst({
+      where: {
+        clientId: parseInt(clientId),
+        uploadedAt: {
+          gte: new Date(currentYear, currentMonth, 1),
+          lt: new Date(currentYear, currentMonth + 1, 1),
+        },
+      },
+    });
+
+    if (existingCampaign) {
+      return res.status(400).json({
+        error: `A campaign for this advertiser already exists for ${monthNames[currentMonth]}-${currentYear}.`,
+      });
+    }
+
+    if (existingCampaign) {
+      return res.status(400).json({
+        error: `A campaign for this advertiser already exists for ${currentMonth}-${currentYear}.`,
+      });
+    }
+
     // Parse the uploaded file
     const { duplicates, data, error } = parseSiteList(req.file.path);
 
