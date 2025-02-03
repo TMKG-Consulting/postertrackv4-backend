@@ -3,6 +3,73 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { campaignPaginate } = require("../Helpers/paginate");
 
+// const parseSiteList = (filePath) => {
+//   const workbook = xlsx.readFile(filePath);
+//   const sheet = workbook.Sheets[workbook.SheetNames[0]];
+//   const data = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+//   if (data.length === 0) {
+//     return { error: "The uploaded file is empty." };
+//   }
+
+//   const firstRow = data[0];
+//   if (firstRow.length !== 7) {
+//     return {
+//       error: `The uploaded file must have exactly 7 columns. Found ${firstRow.length}.`,
+//     };
+//   }
+
+//   const seenLocations = new Map();
+//   const duplicates = [];
+//   const siteData = [];
+
+//   for (let i = 1; i < data.length; i++) {
+//     const row = data[i];
+
+//     if (row.length !== 7) {
+//       return { error: `Row ${i + 1} does not have exactly 7 columns.` };
+//     }
+
+//     const [code, state, city, location, mediaOwner, brand, format] = row.map(
+//       (value) => value?.toString().trim() || ""
+//     );
+
+//     // Skip rows with empty location values
+//     if (!location) continue;
+
+//     // Check for exact location duplicates
+//     if (seenLocations.has(location)) {
+//       duplicates.push({
+//         row: i + 1,
+//         code: code || `SITE-${i.toString().padStart(4, "0")}`,
+//         state,
+//         city,
+//         location,
+//         mediaOwner,
+//         brand,
+//         format,
+//       });
+//     } else {
+//       seenLocations.set(location, i);
+//     }
+
+//     // Generate a unique code if empty
+//     const generatedCode = code || `SITE-${i.toString().padStart(4, "0")}`;
+
+//     siteData.push({
+//       code: generatedCode,
+//       state,
+//       city,
+//       location,
+//       mediaOwner,
+//       brand,
+//       format,
+//     });
+//   }
+
+//   return { duplicates, data: siteData };
+// };
+
 const parseSiteList = (filePath) => {
   const workbook = xlsx.readFile(filePath);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -19,8 +86,6 @@ const parseSiteList = (filePath) => {
     };
   }
 
-  const seenLocations = new Map();
-  const duplicates = [];
   const siteData = [];
 
   for (let i = 1; i < data.length; i++) {
@@ -34,26 +99,8 @@ const parseSiteList = (filePath) => {
       (value) => value?.toString().trim() || ""
     );
 
-    // Skip rows with empty location values
     if (!location) continue;
 
-    // Check for exact location duplicates
-    if (seenLocations.has(location)) {
-      duplicates.push({
-        row: i + 1,
-        code: code || `SITE-${i.toString().padStart(4, "0")}`,
-        state,
-        city,
-        location,
-        mediaOwner,
-        brand,
-        format,
-      });
-    } else {
-      seenLocations.set(location, i);
-    }
-
-    // Generate a unique code if empty
     const generatedCode = code || `SITE-${i.toString().padStart(4, "0")}`;
 
     siteData.push({
@@ -67,11 +114,235 @@ const parseSiteList = (filePath) => {
     });
   }
 
-  return { duplicates, data: siteData };
+  return { data: siteData };
 };
 
+// exports.createCampaign = async (req, res) => {
+//   const { clientId, accountManagerId, proceedWithDuplicates } = req.body;
+
+//   if (!clientId || !accountManagerId) {
+//     return res
+//       .status(400)
+//       .json({ error: "Client ID and Account Manager ID are required." });
+//   }
+
+//   if (!req.file) {
+//     return res.status(400).json({ error: "A site list file is required." });
+//   }
+
+//   try {
+//     // Validate client and fetch the related advertiser
+//     const client = await prisma.user.findUnique({
+//       where: { id: parseInt(clientId) },
+//       include: { advertiser: true }, // Include the advertiser relationship
+//     });
+
+//     if (!client || !client.advertiser || !client.advertiser.name) {
+//       return res.status(404).json({
+//         error:
+//           "Client or associated advertiser not found, or advertiser name is missing.",
+//       });
+//     }
+
+//     // Validate account manager (include both roles)
+//     const accountManager = await prisma.user.findUnique({
+//       where: {
+//         id: parseInt(accountManagerId),
+//         OR: [{ role: "ACCOUNT_MANAGER" }, { role: "CHIEF_ACCOUNT_MANAGER" }],
+//       },
+//     });
+
+//     if (!accountManager) {
+//       return res
+//         .status(404)
+//         .json({ error: "Account Manager or Chief Account Manager not found." });
+//     }
+
+//     // Check for existing campaign for the same advertiser in the current month
+//     const currentDate = new Date();
+//     const monthNames = [
+//       "January",
+//       "February",
+//       "March",
+//       "April",
+//       "May",
+//       "June",
+//       "July",
+//       "August",
+//       "September",
+//       "October",
+//       "November",
+//       "December",
+//     ];
+//     const currentMonth = currentDate.getMonth(); // Zero-based month
+//     const currentYear = currentDate.getFullYear();
+
+//     const existingCampaign = await prisma.campaign.findFirst({
+//       where: {
+//         clientId: parseInt(clientId),
+//         uploadedAt: {
+//           gte: new Date(currentYear, currentMonth, 1),
+//           lt: new Date(currentYear, currentMonth + 1, 1),
+//         },
+//       },
+//     });
+
+//     if (existingCampaign) {
+//       return res.status(400).json({
+//         error: `A campaign for this advertiser already exists for ${monthNames[currentMonth]}-${currentYear}.`,
+//       });
+//     }
+
+//     if (existingCampaign) {
+//       return res.status(400).json({
+//         error: `A campaign for this advertiser already exists for ${currentMonth}-${currentYear}.`,
+//       });
+//     }
+
+//     // Parse the uploaded file
+//     const { duplicates, data, error } = parseSiteList(req.file.path);
+
+//     if (error) {
+//       return res.status(400).json({ error }); // Handle missing columns
+//     }
+
+//     if (duplicates.length > 0 && !proceedWithDuplicates) {
+//       // Filter and populate only valid duplicates with meaningful data
+//       const populatedDuplicates = duplicates
+//         .filter((duplicate) =>
+//           Object.values(duplicate).some((value) => value && value !== "N/A")
+//         )
+//         .map((duplicate) => ({
+//           code: duplicate.code || "N/A",
+//           state: duplicate.state || "N/A",
+//           city: duplicate.city || "N/A",
+//           location: duplicate.location || "Unknown",
+//           mediaOwner: duplicate.mediaOwner || "N/A",
+//           brand: duplicate.brand || "N/A",
+//           format: duplicate.format || "N/A",
+//         }));
+
+//       return res.status(400).json({
+//         error: "Duplicate board locations found.",
+//         duplicates: populatedDuplicates,
+//         prompt: "Would you like to proceed with the upload?",
+//       });
+//     }
+
+//     // Auto-generate campaignID based on client name, current month, and year
+//     const generateCampaignID = async () => {
+//       const advertiserName = client.advertiser.name.slice(0, 3).toUpperCase(); // First 3 letters of advertiser name
+//       const currentDate = new Date();
+//       const monthNames = [
+//         "JAN",
+//         "FEB",
+//         "MAR",
+//         "APR",
+//         "MAY",
+//         "JUN",
+//         "JUL",
+//         "AUG",
+//         "SEP",
+//         "OCT",
+//         "NOV",
+//         "DEC",
+//       ];
+//       const month = monthNames[currentDate.getMonth()];
+//       const year = currentDate.getFullYear().toString().slice(-2); // Last 2 digits of year
+
+//       const baseCampaignID = `${advertiserName}${month}${year}`;
+//       let uniqueID = baseCampaignID;
+
+//       // Ensure campaignID is unique by appending a counter if necessary
+//       let counter = 1;
+//       while (true) {
+//         const existingCampaign = await prisma.campaign.findUnique({
+//           where: { campaignID: uniqueID },
+//         });
+
+//         if (!existingCampaign) break; // Unique campaignID found
+//         uniqueID = `${baseCampaignID}-${counter}`;
+//         counter++;
+//       }
+
+//       return uniqueID;
+//     };
+
+//     const campaignID = await generateCampaignID();
+
+//     // Create the campaign
+//     const campaign = await prisma.campaign.create({
+//       data: {
+//         campaignID, // Auto-generated ID
+//         clientId: parseInt(clientId),
+//         accountManagerId: parseInt(accountManagerId),
+//         siteList: data,
+//         uploadedAt: new Date(),
+//         totalSites: data.length,
+//       },
+//     });
+
+//     // Distribute sites to field auditors based on states covered
+//     const fieldAuditors = await prisma.user.findMany({
+//       where: { role: "FIELD_AUDITOR" },
+//       include: {
+//         statesCovered: {
+//           select: { name: true }, // Retrieve state names
+//         },
+//       },
+//     });
+
+//     const siteAssignments = [];
+//     const stateAuditorMap = {};
+
+//     // Map auditors to states they cover
+//     for (const auditor of fieldAuditors) {
+//       for (const state of auditor.statesCovered) {
+//         const normalizedState = state.name.trim().toLowerCase();
+//         if (!stateAuditorMap[normalizedState]) {
+//           stateAuditorMap[normalizedState] = [];
+//         }
+//         stateAuditorMap[normalizedState].push(auditor.id);
+//       }
+//     }
+
+//     // Assign sites to auditors evenly
+//     for (const [index, site] of data.entries()) {
+//       const state = site.state ? site.state.trim().toLowerCase() : "";
+//       const auditors = stateAuditorMap[state];
+
+//       if (auditors && auditors.length > 0) {
+//         // Distribute sites evenly among auditors for the state
+//         const auditorId = auditors[index % auditors.length];
+//         siteAssignments.push({
+//           campaignId: campaign.id,
+//           siteCode: site.code || `CODE-${Date.now()}-${index + 1}`, // Autogenerate code if empty
+//           fieldAuditorId: auditorId,
+//           status: "pending", // Initialize status as pending
+//         });
+//       } else {
+//         console.warn(`No auditors found for state: ${state}`);
+//       }
+//     }
+
+//     // Save site assignments in the database
+//     await prisma.siteAssignment.createMany({
+//       data: siteAssignments,
+//     });
+
+//     res.status(201).json({
+//       message: "Campaign created and sites assigned to field auditors.",
+//       campaign,
+//       siteAssignments,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: "Error creating campaign." });
+//   }
+// };
+
 exports.createCampaign = async (req, res) => {
-  const { clientId, accountManagerId, proceedWithDuplicates } = req.body;
+  const { clientId, accountManagerId } = req.body;
 
   if (!clientId || !accountManagerId) {
     return res
@@ -84,10 +355,9 @@ exports.createCampaign = async (req, res) => {
   }
 
   try {
-    // Validate client and fetch the related advertiser
     const client = await prisma.user.findUnique({
       where: { id: parseInt(clientId) },
-      include: { advertiser: true }, // Include the advertiser relationship
+      include: { advertiser: true },
     });
 
     if (!client || !client.advertiser || !client.advertiser.name) {
@@ -97,7 +367,6 @@ exports.createCampaign = async (req, res) => {
       });
     }
 
-    // Validate account manager (include both roles)
     const accountManager = await prisma.user.findUnique({
       where: {
         id: parseInt(accountManagerId),
@@ -111,7 +380,6 @@ exports.createCampaign = async (req, res) => {
         .json({ error: "Account Manager or Chief Account Manager not found." });
     }
 
-    // Check for existing campaign for the same advertiser in the current month
     const currentDate = new Date();
     const monthNames = [
       "January",
@@ -127,7 +395,7 @@ exports.createCampaign = async (req, res) => {
       "November",
       "December",
     ];
-    const currentMonth = currentDate.getMonth(); // Zero-based month
+    const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
 
     const existingCampaign = await prisma.campaign.findFirst({
@@ -146,74 +414,29 @@ exports.createCampaign = async (req, res) => {
       });
     }
 
-    if (existingCampaign) {
-      return res.status(400).json({
-        error: `A campaign for this advertiser already exists for ${currentMonth}-${currentYear}.`,
-      });
-    }
-
-    // Parse the uploaded file
-    const { duplicates, data, error } = parseSiteList(req.file.path);
+    const { data, error } = parseSiteList(req.file.path);
 
     if (error) {
-      return res.status(400).json({ error }); // Handle missing columns
+      return res.status(400).json({ error });
     }
 
-    if (duplicates.length > 0 && !proceedWithDuplicates) {
-      // Filter and populate only valid duplicates with meaningful data
-      const populatedDuplicates = duplicates
-        .filter((duplicate) =>
-          Object.values(duplicate).some((value) => value && value !== "N/A")
-        )
-        .map((duplicate) => ({
-          code: duplicate.code || "N/A",
-          state: duplicate.state || "N/A",
-          city: duplicate.city || "N/A",
-          location: duplicate.location || "Unknown",
-          mediaOwner: duplicate.mediaOwner || "N/A",
-          brand: duplicate.brand || "N/A",
-          format: duplicate.format || "N/A",
-        }));
-
-      return res.status(400).json({
-        error: "Duplicate board locations found.",
-        duplicates: populatedDuplicates,
-        prompt: "Would you like to proceed with the upload?",
-      });
-    }
-
-    // Auto-generate campaignID based on client name, current month, and year
     const generateCampaignID = async () => {
-      const advertiserName = client.advertiser.name.slice(0, 3).toUpperCase(); // First 3 letters of advertiser name
-      const currentDate = new Date();
-      const monthNames = [
-        "JAN",
-        "FEB",
-        "MAR",
-        "APR",
-        "MAY",
-        "JUN",
-        "JUL",
-        "AUG",
-        "SEP",
-        "OCT",
-        "NOV",
-        "DEC",
-      ];
-      const month = monthNames[currentDate.getMonth()];
-      const year = currentDate.getFullYear().toString().slice(-2); // Last 2 digits of year
+      const advertiserName = client.advertiser.name.slice(0, 3).toUpperCase();
+      const month = monthNames[currentDate.getMonth()]
+        .slice(0, 3)
+        .toUpperCase();
+      const year = currentDate.getFullYear().toString().slice(-2);
 
       const baseCampaignID = `${advertiserName}${month}${year}`;
       let uniqueID = baseCampaignID;
-
-      // Ensure campaignID is unique by appending a counter if necessary
       let counter = 1;
+
       while (true) {
         const existingCampaign = await prisma.campaign.findUnique({
           where: { campaignID: uniqueID },
         });
 
-        if (!existingCampaign) break; // Unique campaignID found
+        if (!existingCampaign) break;
         uniqueID = `${baseCampaignID}-${counter}`;
         counter++;
       }
@@ -223,10 +446,9 @@ exports.createCampaign = async (req, res) => {
 
     const campaignID = await generateCampaignID();
 
-    // Create the campaign
     const campaign = await prisma.campaign.create({
       data: {
-        campaignID, // Auto-generated ID
+        campaignID,
         clientId: parseInt(clientId),
         accountManagerId: parseInt(accountManagerId),
         siteList: data,
@@ -235,20 +457,16 @@ exports.createCampaign = async (req, res) => {
       },
     });
 
-    // Distribute sites to field auditors based on states covered
     const fieldAuditors = await prisma.user.findMany({
       where: { role: "FIELD_AUDITOR" },
       include: {
-        statesCovered: {
-          select: { name: true }, // Retrieve state names
-        },
+        statesCovered: { select: { name: true } },
       },
     });
 
     const siteAssignments = [];
     const stateAuditorMap = {};
 
-    // Map auditors to states they cover
     for (const auditor of fieldAuditors) {
       for (const state of auditor.statesCovered) {
         const normalizedState = state.name.trim().toLowerCase();
@@ -259,29 +477,24 @@ exports.createCampaign = async (req, res) => {
       }
     }
 
-    // Assign sites to auditors evenly
     for (const [index, site] of data.entries()) {
       const state = site.state ? site.state.trim().toLowerCase() : "";
       const auditors = stateAuditorMap[state];
 
       if (auditors && auditors.length > 0) {
-        // Distribute sites evenly among auditors for the state
         const auditorId = auditors[index % auditors.length];
         siteAssignments.push({
           campaignId: campaign.id,
-          siteCode: site.code || `CODE-${Date.now()}-${index + 1}`, // Autogenerate code if empty
+          siteCode: site.code || `CODE-${Date.now()}-${index + 1}`,
           fieldAuditorId: auditorId,
-          status: "pending", // Initialize status as pending
+          status: "pending",
         });
       } else {
         console.warn(`No auditors found for state: ${state}`);
       }
     }
 
-    // Save site assignments in the database
-    await prisma.siteAssignment.createMany({
-      data: siteAssignments,
-    });
+    await prisma.siteAssignment.createMany({ data: siteAssignments });
 
     res.status(201).json({
       message: "Campaign created and sites assigned to field auditors.",
