@@ -3,6 +3,75 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { campaignPaginate } = require("../Helpers/paginate");
 
+// const parseSiteList = (filePath) => {
+//   const workbook = xlsx.readFile(filePath);
+//   const sheet = workbook.Sheets[workbook.SheetNames[0]];
+//   const data = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+//   if (data.length === 0) {
+//     return { error: "The uploaded file is empty." };
+//   }
+
+//   const firstRow = data[0];
+//   if (firstRow.length !== 7) {
+//     return {
+//       error: `The uploaded file must have exactly 7 columns. Found ${firstRow.length}.`,
+//     };
+//   }
+
+//   const seenLocations = new Map();
+//   const duplicates = [];
+//   const siteData = [];
+
+//   for (let i = 1; i < data.length; i++) {
+//     const row = data[i];
+
+//     if (row.length !== 7) {
+//       return { error: `Row ${i + 1} does not have exactly 7 columns.` };
+//     }
+
+//     const [code, state, city, location, mediaOwner, brand, format] = row;
+
+//     if (!location || location.trim() === "") {
+//       continue; // Skip rows with empty location values
+//     }
+
+//     // Check for exact match in the location column only
+//     if (seenLocations.has(location)) {
+//       const originalRow = seenLocations.get(location) + 1;
+//       duplicates.push(
+//         `Row ${
+//           i + 1
+//         }: Duplicate location "${location}" (originally in Row ${originalRow})`
+//       );
+//     } else {
+//       seenLocations.set(location, i);
+//     }
+
+//     if (code && code.trim() !== "") {
+//       return {
+//         error: `Row ${i + 1} has a non-empty value in the 'code' column.`,
+//       };
+//     }
+
+//     const generatedCode = `SITE-${i.toString().padStart(4, "0")}`;
+
+//     siteData.push({
+//       code: generatedCode,
+//       state,
+//       city,
+//       location,
+//       mediaOwner,
+//       brand,
+//       format,
+//     });
+//   }
+
+//   return { duplicates, data: siteData };
+// };
+
+// Create a new Campaign
+
 const parseSiteList = (filePath) => {
   const workbook = xlsx.readFile(filePath);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -30,31 +99,31 @@ const parseSiteList = (filePath) => {
       return { error: `Row ${i + 1} does not have exactly 7 columns.` };
     }
 
-    const [code, state, city, location, mediaOwner, brand, format] = row;
+    const [code, state, city, location, mediaOwner, brand, format] = row.map(
+      (value) => value?.toString().trim() || ""
+    );
 
-    if (!location || location.trim() === "") {
-      continue; // Skip rows with empty location values
-    }
+    // Skip rows with empty location values
+    if (!location) continue;
 
-    // Check for exact match in the location column only
+    // Check for exact location duplicates
     if (seenLocations.has(location)) {
-      const originalRow = seenLocations.get(location) + 1;
-      duplicates.push(
-        `Row ${
-          i + 1
-        }: Duplicate location "${location}" (originally in Row ${originalRow})`
-      );
+      duplicates.push({
+        row: i + 1,
+        code: code || `SITE-${i.toString().padStart(4, "0")}`,
+        state,
+        city,
+        location,
+        mediaOwner,
+        brand,
+        format,
+      });
     } else {
       seenLocations.set(location, i);
     }
 
-    if (code && code.trim() !== "") {
-      return {
-        error: `Row ${i + 1} has a non-empty value in the 'code' column.`,
-      };
-    }
-
-    const generatedCode = `SITE-${i.toString().padStart(4, "0")}`;
+    // Generate a unique code if empty
+    const generatedCode = code || `SITE-${i.toString().padStart(4, "0")}`;
 
     siteData.push({
       code: generatedCode,
@@ -70,7 +139,6 @@ const parseSiteList = (filePath) => {
   return { duplicates, data: siteData };
 };
 
-// Create a new Campaign
 exports.createCampaign = async (req, res) => {
   const { clientId, accountManagerId, proceedWithDuplicates } = req.body;
 
@@ -161,9 +229,24 @@ exports.createCampaign = async (req, res) => {
     }
 
     if (duplicates.length > 0 && !proceedWithDuplicates) {
+      // Filter and populate only valid duplicates with meaningful data
+      const populatedDuplicates = duplicates
+        .filter((duplicate) =>
+          Object.values(duplicate).some((value) => value && value !== "N/A")
+        )
+        .map((duplicate) => ({
+          code: duplicate.code || "N/A",
+          state: duplicate.state || "N/A",
+          city: duplicate.city || "N/A",
+          location: duplicate.location || "Unknown",
+          mediaOwner: duplicate.mediaOwner || "N/A",
+          brand: duplicate.brand || "N/A",
+          format: duplicate.format || "N/A",
+        }));
+
       return res.status(400).json({
         error: "Duplicate board locations found.",
-        duplicates,
+        duplicates: populatedDuplicates,
         prompt: "Would you like to proceed with the upload?",
       });
     }
