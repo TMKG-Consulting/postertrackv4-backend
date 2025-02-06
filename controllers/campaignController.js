@@ -117,230 +117,6 @@ const parseSiteList = (filePath) => {
   return { data: siteData };
 };
 
-// exports.createCampaign = async (req, res) => {
-//   const { clientId, accountManagerId, proceedWithDuplicates } = req.body;
-
-//   if (!clientId || !accountManagerId) {
-//     return res
-//       .status(400)
-//       .json({ error: "Client ID and Account Manager ID are required." });
-//   }
-
-//   if (!req.file) {
-//     return res.status(400).json({ error: "A site list file is required." });
-//   }
-
-//   try {
-//     // Validate client and fetch the related advertiser
-//     const client = await prisma.user.findUnique({
-//       where: { id: parseInt(clientId) },
-//       include: { advertiser: true }, // Include the advertiser relationship
-//     });
-
-//     if (!client || !client.advertiser || !client.advertiser.name) {
-//       return res.status(404).json({
-//         error:
-//           "Client or associated advertiser not found, or advertiser name is missing.",
-//       });
-//     }
-
-//     // Validate account manager (include both roles)
-//     const accountManager = await prisma.user.findUnique({
-//       where: {
-//         id: parseInt(accountManagerId),
-//         OR: [{ role: "ACCOUNT_MANAGER" }, { role: "CHIEF_ACCOUNT_MANAGER" }],
-//       },
-//     });
-
-//     if (!accountManager) {
-//       return res
-//         .status(404)
-//         .json({ error: "Account Manager or Chief Account Manager not found." });
-//     }
-
-//     // Check for existing campaign for the same advertiser in the current month
-//     const currentDate = new Date();
-//     const monthNames = [
-//       "January",
-//       "February",
-//       "March",
-//       "April",
-//       "May",
-//       "June",
-//       "July",
-//       "August",
-//       "September",
-//       "October",
-//       "November",
-//       "December",
-//     ];
-//     const currentMonth = currentDate.getMonth(); // Zero-based month
-//     const currentYear = currentDate.getFullYear();
-
-//     const existingCampaign = await prisma.campaign.findFirst({
-//       where: {
-//         clientId: parseInt(clientId),
-//         uploadedAt: {
-//           gte: new Date(currentYear, currentMonth, 1),
-//           lt: new Date(currentYear, currentMonth + 1, 1),
-//         },
-//       },
-//     });
-
-//     if (existingCampaign) {
-//       return res.status(400).json({
-//         error: `A campaign for this advertiser already exists for ${monthNames[currentMonth]}-${currentYear}.`,
-//       });
-//     }
-
-//     if (existingCampaign) {
-//       return res.status(400).json({
-//         error: `A campaign for this advertiser already exists for ${currentMonth}-${currentYear}.`,
-//       });
-//     }
-
-//     // Parse the uploaded file
-//     const { duplicates, data, error } = parseSiteList(req.file.path);
-
-//     if (error) {
-//       return res.status(400).json({ error }); // Handle missing columns
-//     }
-
-//     if (duplicates.length > 0 && !proceedWithDuplicates) {
-//       // Filter and populate only valid duplicates with meaningful data
-//       const populatedDuplicates = duplicates
-//         .filter((duplicate) =>
-//           Object.values(duplicate).some((value) => value && value !== "N/A")
-//         )
-//         .map((duplicate) => ({
-//           code: duplicate.code || "N/A",
-//           state: duplicate.state || "N/A",
-//           city: duplicate.city || "N/A",
-//           location: duplicate.location || "Unknown",
-//           mediaOwner: duplicate.mediaOwner || "N/A",
-//           brand: duplicate.brand || "N/A",
-//           format: duplicate.format || "N/A",
-//         }));
-
-//       return res.status(400).json({
-//         error: "Duplicate board locations found.",
-//         duplicates: populatedDuplicates,
-//         prompt: "Would you like to proceed with the upload?",
-//       });
-//     }
-
-//     // Auto-generate campaignID based on client name, current month, and year
-//     const generateCampaignID = async () => {
-//       const advertiserName = client.advertiser.name.slice(0, 3).toUpperCase(); // First 3 letters of advertiser name
-//       const currentDate = new Date();
-//       const monthNames = [
-//         "JAN",
-//         "FEB",
-//         "MAR",
-//         "APR",
-//         "MAY",
-//         "JUN",
-//         "JUL",
-//         "AUG",
-//         "SEP",
-//         "OCT",
-//         "NOV",
-//         "DEC",
-//       ];
-//       const month = monthNames[currentDate.getMonth()];
-//       const year = currentDate.getFullYear().toString().slice(-2); // Last 2 digits of year
-
-//       const baseCampaignID = `${advertiserName}${month}${year}`;
-//       let uniqueID = baseCampaignID;
-
-//       // Ensure campaignID is unique by appending a counter if necessary
-//       let counter = 1;
-//       while (true) {
-//         const existingCampaign = await prisma.campaign.findUnique({
-//           where: { campaignID: uniqueID },
-//         });
-
-//         if (!existingCampaign) break; // Unique campaignID found
-//         uniqueID = `${baseCampaignID}-${counter}`;
-//         counter++;
-//       }
-
-//       return uniqueID;
-//     };
-
-//     const campaignID = await generateCampaignID();
-
-//     // Create the campaign
-//     const campaign = await prisma.campaign.create({
-//       data: {
-//         campaignID, // Auto-generated ID
-//         clientId: parseInt(clientId),
-//         accountManagerId: parseInt(accountManagerId),
-//         siteList: data,
-//         uploadedAt: new Date(),
-//         totalSites: data.length,
-//       },
-//     });
-
-//     // Distribute sites to field auditors based on states covered
-//     const fieldAuditors = await prisma.user.findMany({
-//       where: { role: "FIELD_AUDITOR" },
-//       include: {
-//         statesCovered: {
-//           select: { name: true }, // Retrieve state names
-//         },
-//       },
-//     });
-
-//     const siteAssignments = [];
-//     const stateAuditorMap = {};
-
-//     // Map auditors to states they cover
-//     for (const auditor of fieldAuditors) {
-//       for (const state of auditor.statesCovered) {
-//         const normalizedState = state.name.trim().toLowerCase();
-//         if (!stateAuditorMap[normalizedState]) {
-//           stateAuditorMap[normalizedState] = [];
-//         }
-//         stateAuditorMap[normalizedState].push(auditor.id);
-//       }
-//     }
-
-//     // Assign sites to auditors evenly
-//     for (const [index, site] of data.entries()) {
-//       const state = site.state ? site.state.trim().toLowerCase() : "";
-//       const auditors = stateAuditorMap[state];
-
-//       if (auditors && auditors.length > 0) {
-//         // Distribute sites evenly among auditors for the state
-//         const auditorId = auditors[index % auditors.length];
-//         siteAssignments.push({
-//           campaignId: campaign.id,
-//           siteCode: site.code || `CODE-${Date.now()}-${index + 1}`, // Autogenerate code if empty
-//           fieldAuditorId: auditorId,
-//           status: "pending", // Initialize status as pending
-//         });
-//       } else {
-//         console.warn(`No auditors found for state: ${state}`);
-//       }
-//     }
-
-//     // Save site assignments in the database
-//     await prisma.siteAssignment.createMany({
-//       data: siteAssignments,
-//     });
-
-//     res.status(201).json({
-//       message: "Campaign created and sites assigned to field auditors.",
-//       campaign,
-//       siteAssignments,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: "Error creating campaign." });
-//   }
-// };
-
 exports.createCampaign = async (req, res) => {
   const { clientId, accountManagerId } = req.body;
 
@@ -765,71 +541,232 @@ exports.deleteCampaign = async (req, res) => {
 };
 
 //Site Status update
-exports.updateSiteStatus = async (req, res) => {
+exports.updateComplianceStatus = async (req, res) => {
+  const { complianceReportId } = req.params;
+  const { status } = req.body; // Expected: 'approved' or 'disapproved'
+
+  if (!["approved", "disapproved"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status provided." });
+  }
+
   try {
-    const { siteAssignmentId, status } = req.body;
-    const { role, id: userId } = req.user;
-
-    // Validate input
-    if (!siteAssignmentId || !status) {
-      return res.status(400).json({
-        error: "Site assignment ID and status are required.",
-      });
-    }
-
-    // Validate status value
-    const validStatuses = ["pending", "approved", "disapproved"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        error: `Invalid status. Allowed values are: ${validStatuses.join(
-          ", "
-        )}`,
-      });
-    }
-
-    // Check if the site assignment exists
-    const siteAssignment = await prisma.siteAssignment.findUnique({
-      where: { id: parseInt(siteAssignmentId) },
-      include: {
-        campaign: {
-          select: { accountManagerId: true },
-        },
-      },
+    // Fetch the compliance report
+    const complianceReport = await prisma.complianceReport.findUnique({
+      where: { id: parseInt(complianceReportId) },
+      include: { siteAssignment: true },
     });
 
-    if (!siteAssignment) {
-      return res.status(404).json({
-        error: "Site assignment not found.",
-      });
+    if (!complianceReport) {
+      return res.status(404).json({ error: "Compliance report not found." });
     }
 
-    // Role-based access control
-    if (role === "ACCOUNT_MANAGER") {
-      if (siteAssignment.campaign.accountManagerId !== userId) {
-        return res.status(403).json({
-          error:
-            "Permission Denied: You can only manage sites in your campaigns.",
-        });
-      }
-    } else if (role !== "SUPER_ADMIN" && role !== "CHIEF_ACCOUNT_MANAGER") {
-      return res.status(403).json({
-        error:
-          "Permission Denied: You are not authorized to approve or disapprove site uploads.",
-      });
-    }
+    // Update both Compliance Report and Site Assignment statuses
+    const updatedComplianceReport = await prisma.complianceReport.update({
+      where: { id: parseInt(complianceReportId) },
+      data: { status },
+    });
 
-    // Update the site status
-    const updatedSiteAssignment = await prisma.siteAssignment.update({
-      where: { id: parseInt(siteAssignmentId) },
+    await prisma.siteAssignment.update({
+      where: { id: complianceReport.siteAssignmentId },
       data: { status },
     });
 
     res.status(200).json({
-      message: "Site status updated successfully.",
-      updatedSiteAssignment,
+      message: `Compliance report status updated to '${status}'.`,
+      updatedComplianceReport,
     });
   } catch (error) {
-    console.error("Error updating site status:", error);
-    res.status(500).json({ error: "Error updating site status." });
+    console.error("Error updating compliance report status:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while updating the status." });
+  }
+};
+
+//Get Assigned Sites
+exports.getAssignedSites = async (req, res) => {
+  const fieldAuditorId = req.user?.id;
+
+  if (!fieldAuditorId) {
+    return res.status(400).json({ error: "Field Auditor ID is required." });
+  }
+
+  try {
+    const siteAssignments = await prisma.siteAssignment.findMany({
+      where: { fieldAuditorId },
+      include: {
+        campaign: {
+          select: {
+            campaignID: true,
+            siteList: true,
+            uploadedAt: true,
+            client: { select: { advertiser: true } },
+          },
+        },
+      },
+    });
+
+    if (!siteAssignments.length) {
+      return res.status(404).json({ message: "No site assignments found." });
+    }
+
+    const formattedData = siteAssignments.map((assignment) => {
+      const siteList = assignment.campaign?.siteList;
+
+      if (!Array.isArray(siteList)) {
+        console.warn(
+          "siteList is not an array for campaign:",
+          assignment.campaign?.campaignID
+        );
+        return {
+          siteCode: assignment.siteCode,
+          error: "Site list data is malformed or missing.",
+        };
+      }
+
+      const siteData = siteList.find((site) => {
+        if (!site || typeof site.code !== "string") return false;
+        return site.code.trim() === assignment.siteCode.trim();
+      });
+
+      if (!siteData) {
+        console.warn(`No site data found for siteCode: ${assignment.siteCode}`);
+      }
+
+      return {
+        siteCode: assignment.siteCode,
+        address: siteData?.location || "N/A",
+        state: siteData?.state || "N/A",
+        boardType: siteData?.format || "N/A",
+        mediaOwner: siteData?.mediaOwner || "N/A",
+        campaignID: assignment.campaign?.campaignID || "N/A",
+        uploadedAt: assignment.campaign?.uploadedAt,
+        advertiser: assignment.campaign?.client?.advertiser || "Unknown",
+        status: assignment.status,
+      };
+    });
+
+    res.status(200).json({
+      message: "Assigned sites successfully retrieved.",
+      assignedSites: formattedData,
+    });
+  } catch (error) {
+    console.error("Error fetching assigned sites:", error);
+    res.status(500).json({
+      error: "An error occurred while retrieving assigned sites.",
+    });
+  }
+};
+
+//Get Campaign Allocations
+exports.getCampaignAllocations = async (req, res) => {
+  try {
+    const campaigns = await prisma.campaign.findMany({
+      include: {
+        client: { select: { advertiser: true } },
+        accountManager: { select: { firstname: true, lastname: true } },
+        siteAssignments: true,
+      },
+    });
+
+    if (campaigns.length === 0) {
+      return res.status(404).json({ message: "No campaigns found." });
+    }
+
+    const result = campaigns.map((campaign) => {
+      const totalAuditors = new Set(
+        campaign.siteAssignments.map((assignment) => assignment.fieldAuditorId)
+      ).size;
+
+      return {
+        campaignId: campaign.campaignID,
+        client: campaign.client?.advertiser || "N/A",
+        accountManager:
+          campaign.accountManager?.firstname +
+            " " +
+            campaign.accountManager?.lastname || "N/A",
+        dateUploaded: campaign.uploadedAt,
+        totalSites: campaign.totalSites,
+        totalAuditors,
+      };
+    });
+
+    res.status(200).json({
+      message: "Campaign allocations retrieved successfully.",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error fetching campaign allocations:", error);
+    res.status(500).json({
+      error: "An error occurred while retrieving campaign allocations.",
+    });
+  }
+};
+
+//View Sites Allocation
+exports.viewAllocation = async (req, res) => {
+  const { campaignId } = req.params;
+
+  if (!campaignId) {
+    return res.status(400).json({ error: "Campaign ID is required." });
+  }
+
+  try {
+    // Fetch campaign to ensure it exists
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: parseInt(campaignId) },
+      include: {
+        siteAssignments: {
+          include: {
+            fieldAuditor: { select: { firstname: true, lastname: true } },
+          },
+        },
+      },
+    });
+
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found." });
+    }
+
+    // Process data to group by field auditor
+    const auditorTaskData = campaign.siteAssignments.reduce(
+      (acc, assignment) => {
+        const { fieldAuditor, status } = assignment;
+        if (!fieldAuditor) return acc;
+
+        const auditorName =
+          fieldAuditor.firstname + " " + fieldAuditor.lastname;
+
+        if (!acc[auditorName]) {
+          acc[auditorName] = { totalSites: 0, approvedSites: 0 };
+        }
+
+        acc[auditorName].totalSites += 1;
+        if (status.toLowerCase() === "approved") {
+          acc[auditorName].approvedSites += 1;
+        }
+
+        return acc;
+      },
+      {}
+    );
+
+    // Format the response
+    const result = Object.entries(auditorTaskData).map(([name, data]) => ({
+      fieldAuditor: name,
+      totalSites: data.totalSites,
+      approvedSites: data.approvedSites,
+    }));
+
+    res.status(200).json({
+      message: "Field auditor tasks retrieved successfully.",
+      campaignId: campaign.campaignID,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error fetching field auditor tasks:", error);
+    res.status(500).json({
+      error: "An error occurred while fetching field auditor tasks.",
+    });
   }
 };

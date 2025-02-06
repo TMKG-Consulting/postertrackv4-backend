@@ -32,6 +32,7 @@ model User {
   campaignsAsClient        Campaign[] @relation("ClientRelation")
   campaignsAsAccountManager Campaign[] @relation("AccountManagerRelation")
   siteAssignments          SiteAssignment[] @relation("FieldAuditorRelation")
+  complianceReports        ComplianceReport[] @relation("FieldAuditor")
   status          Boolean   @default(true)
   profilePicture  String?   @default("https://storage.googleapis.com/postertrack-bucket-images/user.png")
   createdAt       DateTime  @default(now())
@@ -64,6 +65,7 @@ model Campaign {
   client           User      @relation("ClientRelation", fields: [clientId], references: [id])
   accountManager   User      @relation("AccountManagerRelation", fields: [accountManagerId], references: [id])
   siteAssignments  SiteAssignment[] @relation("CampaignRelation")
+  complianceReports ComplianceReport[]
 }
 
 model SiteAssignment {
@@ -76,6 +78,7 @@ model SiteAssignment {
   editedAt         DateTime?
   campaign       Campaign  @relation("CampaignRelation", fields: [campaignId], references: [id])
   fieldAuditor   User      @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
+  ComplianceReport ComplianceReport[]
 }
 
 enum Role {
@@ -122,4 +125,69 @@ model Brand {
   logo        String?      
   advertiser   Advertiser  @relation(fields: [advertiserId], references: [id])
   category     Category @relation(fields: [categoryId], references: [id])
+}
+
+model ComplianceReport {
+  id            Int          @id @default(autoincrement())
+  siteCode      String
+  campaignId    Int
+  advertiser    String
+  brand         String
+  address       String
+  boardType     String
+  mediaOwner    String
+  message       String
+  structureId   Int
+  posterId      Int
+  illuminationId Int
+  routeId       Int
+  sideId        Int
+  comment       String
+  imageUrls     String[]      @default([])
+  status        String    @default("pending")
+  siteAssignmentId Int
+  uploadedBy    Int
+  uploadedAt    DateTime      @default(now())
+  
+  Campaign      Campaign      @relation(fields: [campaignId], references: [id])
+  FieldAuditor  User          @relation("FieldAuditor", fields: [uploadedBy], references: [id])
+  Structure     Structure     @relation(fields: [structureId], references: [id])
+  Poster        Poster        @relation(fields: [posterId], references: [id])
+  Illumination  Illumination  @relation(fields: [illuminationId], references: [id])
+  Route         Route         @relation(fields: [routeId], references: [id])
+  Side          Side          @relation(fields: [sideId], references: [id])
+  siteAssignment  SiteAssignment @relation(fields: [siteAssignmentId], references: [id])
+  
+
+  @@unique([siteCode, campaignId]) // Unique constraint for campaign and site
+}
+
+model Structure {
+  id      Int     @id @default(autoincrement())
+  name    String
+  ComplianceReport ComplianceReport[]
+}
+
+model Poster {
+  id      Int     @id @default(autoincrement())
+  name    String 
+  ComplianceReport ComplianceReport[]
+}
+
+model Illumination {
+  id      Int     @id @default(autoincrement())
+  name    String 
+  ComplianceReport ComplianceReport[]
+}
+
+model Route {
+  id      Int     @id @default(autoincrement())
+  name    String 
+  ComplianceReport ComplianceReport[]
+}
+
+model Side {
+  id      Int     @id @default(autoincrement())
+  name    String 
+  ComplianceReport ComplianceReport[]
 }

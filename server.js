@@ -9,6 +9,7 @@ const advertiserRoutes = require("./routes/advertiserRoutes");
 const brandRoutes = require("./routes/brandRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const searchRoutes = require("./routes/searchRoutes")
+const complianceRoutes = require("./routes/complianceRoutes");
 const app = express();
 require("dotenv").config();
 
@@ -31,6 +32,7 @@ app.use("/", advertiserRoutes);
 app.use("/", brandRoutes);
 app.use("/", categoryRoutes);
 app.use("/", searchRoutes);
+app.use("/", complianceRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

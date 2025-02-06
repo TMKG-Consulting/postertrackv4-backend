@@ -30,14 +30,6 @@ router.post(
   campaignController.createCampaign
 );
 
-// Update site status
-router.patch(
-  "/updateSiteStatus",
-  authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
-  campaignController.updateSiteStatus
-);
-
 router.get(
   "/campaigns/:id",
   authToken,
@@ -66,6 +58,32 @@ router.post(
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   upload.single("siteList"),
   campaignController.addSitesToCampaign
+);
+
+router.get(
+  "/get-assigned-sites",
+  authToken,
+  campaignController.getAssignedSites
+);
+
+router.get(
+  "/campaign-allocations",
+  authToken,
+  campaignController.getCampaignAllocations
+);
+
+router.get(
+  "/campaign/:campaignId/auditor-tasks",
+  authToken,
+  campaignController.viewAllocation
+);
+
+// Update site status
+router.put(
+  "/compliance/:complianceReportId/status",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
+  campaignController.updateComplianceStatus
 );
 
 module.exports = router;
