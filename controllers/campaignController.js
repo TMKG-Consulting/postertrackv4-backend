@@ -679,6 +679,7 @@ exports.getCampaignAllocations = async (req, res) => {
       ).size;
 
       return {
+        mainId: campaign.id,
         campaignId: campaign.campaignID,
         client: campaign.client?.advertiser || "N/A",
         accountManager:
