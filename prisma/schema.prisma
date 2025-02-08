@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,79 +8,104 @@ datasource db {
 }
 
 model User {
-  id                       Int       @id @default(autoincrement())
-  firstname                String?
-  lastname                 String?
-  email                    String    @unique
-  phone                    String?
-  address                  String?
-  password                 String
-  role                     Role
-  statesCovered            State[]   @relation("UserStates")
-  additionalEmail          String[]  @default([])
-  advertiserId             Int?   
-  advertiser               Advertiser? @relation(fields: [advertiserId], references: [id])
-  industryId               Int?
-  industry                 Industry? @relation(fields: [industryId], references: [id])
-
-  campaignsAsClient        Campaign[] @relation("ClientRelation")
-  campaignsAsAccountManager Campaign[] @relation("AccountManagerRelation")
-  siteAssignments          SiteAssignment[] @relation("FieldAuditorRelation")
-  complianceReports        ComplianceReport[] @relation("FieldAuditor")
-  status          Boolean   @default(true)
-  profilePicture  String?   @default("https://storage.googleapis.com/postertrack-bucket-images/user.png")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                        Int                @id @default(autoincrement())
+  firstname                 String?
+  lastname                  String?
+  email                     String             @unique
+  phone                     String?
+  address                   String?
+  password                  String
+  role                      Role
+  additionalEmail           String[]           @default([])
+  industryId                Int?
+  advertiserId              Int?
+  createdAt                 DateTime           @default(now())
+  profilePicture            String?            @default("https://storage.googleapis.com/postertrack-bucket-images/user.png")
+  status                    Boolean            @default(true)
+  updatedAt                 DateTime           @updatedAt
+  campaignsAsAccountManager Campaign[]         @relation("AccountManagerRelation")
+  campaignsAsClient         Campaign[]         @relation("ClientRelation")
+  complianceReports         ComplianceReport[] @relation("FieldAuditor")
+  siteAssignments           SiteAssignment[]   @relation("FieldAuditorRelation")
+  advertiser                Advertiser?        @relation(fields: [advertiserId], references: [id])
+  industry                  Industry?          @relation(fields: [industryId], references: [id])
+  statesCovered             State[]            @relation("UserStates")
 }
 
 model Industry {
-  id   Int    @id @default(autoincrement())
-  name String @unique
+  id    Int    @id @default(autoincrement())
+  name  String @unique
   users User[]
 }
 
 model Advertiser {
-  id       Int      @id @default(autoincrement())
-  name     String   @unique
-  brands   Brand[]
-  users    User[]
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  brands Brand[]
+  users  User[]
 }
 
 model Campaign {
-  id               Int       @id @default(autoincrement())
-  campaignID       String    @unique
+  id               Int                @id @default(autoincrement())
   clientId         Int
   accountManagerId Int
   siteList         Json
-  uploadedAt       DateTime  @default(now())
+  uploadedAt       DateTime           @default(now())
   editedAt         DateTime?
   totalSites       Int
-
-  client           User      @relation("ClientRelation", fields: [clientId], references: [id])
-  accountManager   User      @relation("AccountManagerRelation", fields: [accountManagerId], references: [id])
-  siteAssignments  SiteAssignment[] @relation("CampaignRelation")
-  complianceReports ComplianceReport[]
+  campaignID       String             @unique
+  accountManager   User               @relation("AccountManagerRelation", fields: [accountManagerId], references: [id])
+  client           User               @relation("ClientRelation", fields: [clientId], references: [id])
+  ComplianceReport ComplianceReport[]
+  siteAssignments  SiteAssignment[]   @relation("CampaignRelation")
 }
 
 model SiteAssignment {
-  id             Int       @id @default(autoincrement())
-  campaignId     Int
-  siteCode       String
-  fieldAuditorId Int
-  status         String    @default("pending")
-  uploadedAt       DateTime  @default(now())
+  id               Int                @id @default(autoincrement())
+  campaignId       Int
+  siteCode         String
+  fieldAuditorId   Int
+  status           String             @default("pending")
   editedAt         DateTime?
-  campaign       Campaign  @relation("CampaignRelation", fields: [campaignId], references: [id])
-  fieldAuditor   User      @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
+  uploadedAt       DateTime           @default(now())
   ComplianceReport ComplianceReport[]
+  campaign         Campaign           @relation("CampaignRelation", fields: [campaignId], references: [id])
+  fieldAuditor     User               @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
 }
 
-enum Role {
-  SUPER_ADMIN
-  CHIEF_ACCOUNT_MANAGER
-  ACCOUNT_MANAGER
-  FIELD_AUDITOR
-  CLIENT_AGENCY_USER
+model ComplianceReport {
+  id               Int            @id @default(autoincrement())
+  siteCode         String
+  campaignId       Int
+  advertiser       String
+  brand            String
+  address          String
+  boardType        String
+  mediaOwner       String
+  message          String
+  structureId      Int
+  posterId         Int
+  illuminationId   Int
+  routeId          Int
+  sideId           Int
+  comment          String
+  imageUrls        String[]       @default([])
+  uploadedBy       Int
+  uploadedAt       DateTime       @default(now())
+  status           String         @default("pending")
+  siteAssignmentId Int
+  bsv              String         @default("0%")
+  city             String
+  campaign         Campaign       @relation(fields: [campaignId], references: [id])
+  Illumination     Illumination   @relation(fields: [illuminationId], references: [id])
+  Poster           Poster         @relation(fields: [posterId], references: [id])
+  Route            Route          @relation(fields: [routeId], references: [id])
+  Side             Side           @relation(fields: [sideId], references: [id])
+  siteAssignment   SiteAssignment @relation(fields: [siteAssignmentId], references: [id])
+  Structure        Structure      @relation(fields: [structureId], references: [id])
+  FieldAuditor     User           @relation("FieldAuditor", fields: [uploadedBy], references: [id])
+
+  @@unique([siteCode, campaignId])
 }
 
 model Region {
@@ -96,98 +115,71 @@ model Region {
 }
 
 model State {
-  id       Int      @id @default(autoincrement())
+  id       Int    @id @default(autoincrement())
   name     String
   regionId Int
-  region   Region   @relation("RegionStates", fields: [regionId], references: [id])
   cities   City[]
-  users    User[]   @relation("UserStates") // Added reverse relation to User model
+  region   Region @relation("RegionStates", fields: [regionId], references: [id])
+  users    User[] @relation("UserStates")
 }
 
 model City {
-  id      Int     @id @default(autoincrement())
+  id      Int    @id @default(autoincrement())
   name    String
   stateId Int
-  state   State   @relation(fields: [stateId], references: [id])
+  state   State  @relation(fields: [stateId], references: [id])
 }
 
 model Category {
-  id      Int     @id @default(autoincrement())
-  name    String  
-  brands  Brand[]
+  id     Int     @id @default(autoincrement())
+  name   String
+  brands Brand[]
 }
 
 model Brand {
   id           Int        @id @default(autoincrement())
   name         String
   advertiserId Int
-  categoryId   Int 
-  logo        String?      
-  advertiser   Advertiser  @relation(fields: [advertiserId], references: [id])
-  category     Category @relation(fields: [categoryId], references: [id])
-}
-
-model ComplianceReport {
-  id            Int          @id @default(autoincrement())
-  siteCode      String
-  campaignId    Int
-  advertiser    String
-  brand         String
-  address       String
-  boardType     String
-  mediaOwner    String
-  message       String
-  structureId   Int
-  posterId      Int
-  illuminationId Int
-  routeId       Int
-  sideId        Int
-  comment       String
-  imageUrls     String[]      @default([])
-  status        String    @default("pending")
-  siteAssignmentId Int
-  uploadedBy    Int
-  uploadedAt    DateTime      @default(now())
-  
-  Campaign      Campaign      @relation(fields: [campaignId], references: [id])
-  FieldAuditor  User          @relation("FieldAuditor", fields: [uploadedBy], references: [id])
-  Structure     Structure     @relation(fields: [structureId], references: [id])
-  Poster        Poster        @relation(fields: [posterId], references: [id])
-  Illumination  Illumination  @relation(fields: [illuminationId], references: [id])
-  Route         Route         @relation(fields: [routeId], references: [id])
-  Side          Side          @relation(fields: [sideId], references: [id])
-  siteAssignment  SiteAssignment @relation(fields: [siteAssignmentId], references: [id])
-  
-
-  @@unique([siteCode, campaignId]) // Unique constraint for campaign and site
+  categoryId   Int
+  logo         String?
+  advertiser   Advertiser @relation(fields: [advertiserId], references: [id])
+  category     Category   @relation(fields: [categoryId], references: [id])
 }
 
 model Structure {
-  id      Int     @id @default(autoincrement())
-  name    String
+  id               Int                @id @default(autoincrement())
+  name             String
   ComplianceReport ComplianceReport[]
 }
 
 model Poster {
-  id      Int     @id @default(autoincrement())
-  name    String 
+  id               Int                @id @default(autoincrement())
+  name             String
   ComplianceReport ComplianceReport[]
 }
 
 model Illumination {
-  id      Int     @id @default(autoincrement())
-  name    String 
+  id               Int                @id @default(autoincrement())
+  name             String
   ComplianceReport ComplianceReport[]
 }
 
 model Route {
-  id      Int     @id @default(autoincrement())
-  name    String 
+  id               Int                @id @default(autoincrement())
+  name             String
   ComplianceReport ComplianceReport[]
 }
 
 model Side {
-  id      Int     @id @default(autoincrement())
-  name    String 
+  id               Int                @id @default(autoincrement())
+  name             String
   ComplianceReport ComplianceReport[]
+}
+
+enum Role {
+  SUPER_ADMIN
+  CHIEF_ACCOUNT_MANAGER
+  ACCOUNT_MANAGER
+  FIELD_AUDITOR
+  CLIENT_AGENCY_USER
 }

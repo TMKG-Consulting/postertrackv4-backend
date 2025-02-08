@@ -8,6 +8,10 @@ exports.createBrand = async (req, res) => {
   try {
     const { name, advertiserId, categoryId } = req.body;
 
+    console.log("Request Body:", req.body);
+    console.log("Request File:", req.file);
+
+
     // Validate input fields
     if (!name || !advertiserId || !categoryId) {
       return res

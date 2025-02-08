@@ -5,12 +5,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 const brandController = require("../controllers/brand");
 const { authToken, authRole } = require("../middleware/auth");
 
-// Multer setup for handling file uploads
-// const upload = multer({
-//   storage: multer.memoryStorage(), // Store files in memory for GCS
-//   limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
-// });
-
 router.post(
   "/api/brands",
   authToken,

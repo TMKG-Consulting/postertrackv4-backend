@@ -1,3 +1,15 @@
+/*
+  Warnings:
+
+  - You are about to drop the `CampaignAllocation` table. If the table is not empty, all the data it contains will be lost.
+
+*/
+-- DropForeignKey
+ALTER TABLE "CampaignAllocation" DROP CONSTRAINT "CampaignAllocation_campaignId_fkey";
+
+-- DropTable
+DROP TABLE "CampaignAllocation";
+
 -- CreateTable
 CREATE TABLE "ComplianceReport" (
     "id" SERIAL NOT NULL,
@@ -18,6 +30,10 @@ CREATE TABLE "ComplianceReport" (
     "imageUrls" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "uploadedBy" INTEGER NOT NULL,
     "uploadedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "siteAssignmentId" INTEGER NOT NULL,
+    "bsv" TEXT NOT NULL DEFAULT '0%',
+    "city" TEXT NOT NULL,
 
     CONSTRAINT "ComplianceReport_pkey" PRIMARY KEY ("id")
 );
@@ -69,19 +85,22 @@ CREATE UNIQUE INDEX "ComplianceReport_siteCode_campaignId_key" ON "ComplianceRep
 ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "Campaign"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_uploadedBy_fkey" FOREIGN KEY ("uploadedBy") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_structureId_fkey" FOREIGN KEY ("structureId") REFERENCES "Structure"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_illuminationId_fkey" FOREIGN KEY ("illuminationId") REFERENCES "Illumination"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_posterId_fkey" FOREIGN KEY ("posterId") REFERENCES "Poster"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_illuminationId_fkey" FOREIGN KEY ("illuminationId") REFERENCES "Illumination"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_sideId_fkey" FOREIGN KEY ("sideId") REFERENCES "Side"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_siteAssignmentId_fkey" FOREIGN KEY ("siteAssignmentId") REFERENCES "SiteAssignment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_structureId_fkey" FOREIGN KEY ("structureId") REFERENCES "Structure"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ComplianceReport" ADD CONSTRAINT "ComplianceReport_uploadedBy_fkey" FOREIGN KEY ("uploadedBy") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

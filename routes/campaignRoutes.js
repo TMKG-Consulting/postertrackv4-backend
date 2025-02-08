@@ -78,12 +78,5 @@ router.get(
   campaignController.viewAllocation
 );
 
-// Update site status
-router.put(
-  "/compliance/:complianceReportId/status",
-  authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
-  campaignController.updateComplianceStatus
-);
 
 module.exports = router;

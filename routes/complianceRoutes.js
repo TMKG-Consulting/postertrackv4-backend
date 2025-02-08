@@ -2,14 +2,14 @@ const express = require("express");
 const complianceController = require("../controllers/complianceController");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
-const { authToken } = require("../middleware/auth");
+const { authToken, authRole } = require("../middleware/auth");
 
 const router = express.Router();
 
-router.post("/structure", authToken, complianceController.createStructure);
-router.get("/structure", authToken, complianceController.getAllStructures);
+// router.post("/structure", authToken, complianceController.createStructure);
+// router.get("/structure", authToken, complianceController.getAllStructures);
 
-const models = ["Poster", "Illumination", "Route", "Side"];
+const models = ["Structure", "Poster", "Illumination", "Route", "Side"];
 
 models.forEach((model) => {
   router.post(`/${model.toLowerCase()}`, authToken, complianceController.createEntity(model));
@@ -22,6 +22,14 @@ router.post(
   authToken,
   upload.array("imageUrls", 2), // Multiple image uploads
   complianceController.complianceUpload
+);
+
+// Update site status
+router.put(
+  "/compliance/:complianceReportId/status",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
+  complianceController.updateComplianceStatus
 );
 
 module.exports = router;

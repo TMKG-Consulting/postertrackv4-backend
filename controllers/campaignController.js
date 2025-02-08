@@ -3,73 +3,6 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { campaignPaginate } = require("../Helpers/paginate");
 
-// const parseSiteList = (filePath) => {
-//   const workbook = xlsx.readFile(filePath);
-//   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-//   const data = xlsx.utils.sheet_to_json(sheet, { header: 1 });
-
-//   if (data.length === 0) {
-//     return { error: "The uploaded file is empty." };
-//   }
-
-//   const firstRow = data[0];
-//   if (firstRow.length !== 7) {
-//     return {
-//       error: `The uploaded file must have exactly 7 columns. Found ${firstRow.length}.`,
-//     };
-//   }
-
-//   const seenLocations = new Map();
-//   const duplicates = [];
-//   const siteData = [];
-
-//   for (let i = 1; i < data.length; i++) {
-//     const row = data[i];
-
-//     if (row.length !== 7) {
-//       return { error: `Row ${i + 1} does not have exactly 7 columns.` };
-//     }
-
-//     const [code, state, city, location, mediaOwner, brand, format] = row.map(
-//       (value) => value?.toString().trim() || ""
-//     );
-
-//     // Skip rows with empty location values
-//     if (!location) continue;
-
-//     // Check for exact location duplicates
-//     if (seenLocations.has(location)) {
-//       duplicates.push({
-//         row: i + 1,
-//         code: code || `SITE-${i.toString().padStart(4, "0")}`,
-//         state,
-//         city,
-//         location,
-//         mediaOwner,
-//         brand,
-//         format,
-//       });
-//     } else {
-//       seenLocations.set(location, i);
-//     }
-
-//     // Generate a unique code if empty
-//     const generatedCode = code || `SITE-${i.toString().padStart(4, "0")}`;
-
-//     siteData.push({
-//       code: generatedCode,
-//       state,
-//       city,
-//       location,
-//       mediaOwner,
-//       brand,
-//       format,
-//     });
-//   }
-
-//   return { duplicates, data: siteData };
-// };
-
 const parseSiteList = (filePath) => {
   const workbook = xlsx.readFile(filePath);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -303,13 +236,21 @@ exports.addSitesToCampaign = async (req, res) => {
       return res.status(404).json({ error: "Campaign not found." });
     }
 
+    const existingSiteList = Array.isArray(campaign.siteList)
+      ? campaign.siteList
+      : [];
+
     const { duplicates, data, error } = parseSiteList(req.file.path);
 
     if (error) {
       return res.status(400).json({ error });
     }
 
-    if (duplicates.length > 0 && !proceedWithDuplicates) {
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ error: "No valid site data found." });
+    }
+
+    if (duplicates && duplicates.length > 0 && !proceedWithDuplicates) {
       return res.status(400).json({
         error: "Duplicate board locations found.",
         duplicates,
@@ -317,8 +258,7 @@ exports.addSitesToCampaign = async (req, res) => {
       });
     }
 
-    // Update the campaign site list
-    const updatedSiteList = [...campaign.siteList, ...data];
+    const updatedSiteList = [...existingSiteList, ...data];
 
     const updatedCampaign = await prisma.campaign.update({
       where: { id: campaign.id },
@@ -329,44 +269,49 @@ exports.addSitesToCampaign = async (req, res) => {
       },
     });
 
-    // Fetch field auditors and map states to auditors
     const fieldAuditors = await prisma.user.findMany({
       where: { role: "FIELD_AUDITOR" },
       include: { statesCovered: { select: { name: true } } },
     });
 
-    const stateAuditorMap = {};
-
-    for (const auditor of fieldAuditors) {
-      for (const state of auditor.statesCovered) {
-        const normalizedState = state.name.trim().toLowerCase();
-        if (!stateAuditorMap[normalizedState]) {
-          stateAuditorMap[normalizedState] = [];
-        }
-        stateAuditorMap[normalizedState].push(auditor.id);
-      }
+    if (!fieldAuditors || fieldAuditors.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "No field auditors found for site assignments." });
     }
 
-    const siteAssignments = [];
+    const stateAuditorMap = fieldAuditors.reduce((map, auditor) => {
+      auditor.statesCovered.forEach((state) => {
+        const normalizedState = state.name.trim().toLowerCase();
+        if (!map[normalizedState]) map[normalizedState] = [];
+        map[normalizedState].push(auditor.id);
+      });
+      return map;
+    }, {});
 
-    for (const [index, site] of data.entries()) {
-      const state = site.state ? site.state.trim().toLowerCase() : "";
-      const auditors = stateAuditorMap[state];
+    const siteAssignments = data
+      .map((site, index) => {
+        const state = site.state ? site.state.trim().toLowerCase() : "";
+        const auditors = stateAuditorMap[state] || [];
 
-      if (auditors && auditors.length > 0) {
+        if (auditors.length === 0) {
+          console.warn(`No auditors found for state: ${state}`);
+          return null;
+        }
+
         const auditorId = auditors[index % auditors.length];
-        siteAssignments.push({
+        return {
           campaignId: updatedCampaign.id,
           siteCode: site.code || `CODE-${Date.now()}-${index + 1}`,
           fieldAuditorId: auditorId,
           status: "pending",
-        });
-      } else {
-        console.warn(`No auditors found for state: ${state}`);
-      }
-    }
+        };
+      })
+      .filter(Boolean);
 
-    await prisma.siteAssignment.createMany({ data: siteAssignments });
+    if (siteAssignments.length > 0) {
+      await prisma.siteAssignment.createMany({ data: siteAssignments });
+    }
 
     res.status(200).json({
       message: "Sites added to campaign and assigned to field auditors.",
@@ -374,7 +319,7 @@ exports.addSitesToCampaign = async (req, res) => {
       siteAssignments,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error adding sites to campaign:", error);
     res.status(500).json({ error: "Error adding sites to campaign." });
   }
 };
@@ -537,49 +482,6 @@ exports.deleteCampaign = async (req, res) => {
     res
       .status(500)
       .json({ error: "An error occurred while deleting the campaign." });
-  }
-};
-
-//Site Status update
-exports.updateComplianceStatus = async (req, res) => {
-  const { complianceReportId } = req.params;
-  const { status } = req.body; // Expected: 'approved' or 'disapproved'
-
-  if (!["approved", "disapproved"].includes(status)) {
-    return res.status(400).json({ error: "Invalid status provided." });
-  }
-
-  try {
-    // Fetch the compliance report
-    const complianceReport = await prisma.complianceReport.findUnique({
-      where: { id: parseInt(complianceReportId) },
-      include: { siteAssignment: true },
-    });
-
-    if (!complianceReport) {
-      return res.status(404).json({ error: "Compliance report not found." });
-    }
-
-    // Update both Compliance Report and Site Assignment statuses
-    const updatedComplianceReport = await prisma.complianceReport.update({
-      where: { id: parseInt(complianceReportId) },
-      data: { status },
-    });
-
-    await prisma.siteAssignment.update({
-      where: { id: complianceReport.siteAssignmentId },
-      data: { status },
-    });
-
-    res.status(200).json({
-      message: `Compliance report status updated to '${status}'.`,
-      updatedComplianceReport,
-    });
-  } catch (error) {
-    console.error("Error updating compliance report status:", error);
-    res
-      .status(500)
-      .json({ error: "An error occurred while updating the status." });
   }
 };
 

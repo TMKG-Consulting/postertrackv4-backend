@@ -8,12 +8,14 @@ exports.complianceUpload = async (req, res) => {
     campaignId,
     advertiser,
     brand,
+    city,
     address,
     boardType,
     mediaOwner,
     message,
     comment,
     status,
+    bsv,
     structureId,
     posterId,
     illuminationId,
@@ -21,51 +23,70 @@ exports.complianceUpload = async (req, res) => {
     sideId,
   } = req.body;
 
-  // Extract user ID from middleware token
   const fieldAuditorId = req.user?.id;
 
-  if (
-    !siteCode ||
-    !campaignId ||
-    !advertiser ||
-    !brand ||
-    !address ||
-    !boardType ||
-    !mediaOwner ||
-    !message ||
-    !comment ||
-    !status ||
-    !structureId ||
-    !posterId ||
-    !illuminationId ||
-    !routeId ||
-    !sideId
-  ) {
-    return res
-      .status(400)
-      .json({ error: "All required fields must be provided." });
-  }
-
   try {
+    // Validate required fields
+    const requiredFields = {
+      siteCode,
+      campaignId,
+      advertiser,
+      brand,
+      city,
+      address,
+      boardType,
+      mediaOwner,
+      message,
+      comment,
+      structureId,
+      posterId,
+      illuminationId,
+      routeId,
+      sideId,
+    };
+
+    for (const [key, value] of Object.entries(requiredFields)) {
+      if (!value) {
+        return res.status(400).json({ error: `${key} is required.` });
+      }
+    }
+
     // Check if the site assignment exists for this auditor
     const siteAssignment = await prisma.siteAssignment.findFirst({
-      where: {
-        fieldAuditorId,
-      },
+      where: { fieldAuditorId },
     });
 
     if (!siteAssignment) {
-      return res
-        .status(404)
-        .json({ error: "Site assignment not found for the given user." });
+      return res.status(404).json({
+        error: "No site assignment found for this auditor.",
+      });
     }
 
-    // Handle file uploads (images)
-    const imageUrls = [];
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const uploadedUrl = await uploadToGCS(file);
-        imageUrls.push(uploadedUrl);
+    // Check for existing compliance report
+    const existingReport = await prisma.complianceReport.findFirst({
+      where: { siteCode, campaignId: parseInt(campaignId) },
+    });
+
+    if (existingReport) {
+      return res.status(409).json({
+        error:
+          "A compliance report already exists for this siteCode and campaign.",
+      });
+    }
+
+    // Handle image uploads
+    let imageUrls = [];
+    if (req.files?.length > 0) {
+      try {
+        for (const file of req.files) {
+          const uploadedUrl = await uploadToGCS(file);
+          imageUrls.push(uploadedUrl);
+        }
+      } catch (uploadError) {
+        return res.status(500).json({
+          error: "Error uploading images.",
+          details: uploadError.message,
+        });
       }
     }
 
@@ -73,22 +94,25 @@ exports.complianceUpload = async (req, res) => {
     const complianceReport = await prisma.complianceReport.create({
       data: {
         siteCode,
-        campaignId: parseInt(campaignId),
         advertiser,
         brand,
+        city,
         address,
         boardType,
         mediaOwner,
         message,
         comment,
-        status,
-        structureId: parseInt(structureId),
-        posterId: parseInt(posterId),
-        illuminationId: parseInt(illuminationId),
-        routeId: parseInt(routeId),
-        sideId: parseInt(sideId),
+        status: status || "pending",
+        bsv: bsv || "0%",
         imageUrls,
-        uploadedBy: fieldAuditorId,
+        campaign: { connect: { id: parseInt(campaignId) } },
+        Illumination: { connect: { id: parseInt(illuminationId) } },
+        Poster: { connect: { id: parseInt(posterId) } },
+        Route: { connect: { id: parseInt(routeId) } },
+        Side: { connect: { id: parseInt(sideId) } },
+        Structure: { connect: { id: parseInt(structureId) } },
+        FieldAuditor: { connect: { id: parseInt(fieldAuditorId) } },
+        siteAssignment: { connect: { id: parseInt(siteAssignment.id) } },
       },
     });
 
@@ -100,6 +124,7 @@ exports.complianceUpload = async (req, res) => {
     console.error("Error creating compliance report:", error);
     res.status(500).json({
       error: "An error occurred while creating the compliance report.",
+      details: error.message,
     });
   }
 };
@@ -170,5 +195,51 @@ exports.getAllEntities = (model) => async (req, res) => {
     res
       .status(500)
       .json({ error: `An error occurred while fetching ${model}s.` });
+  }
+};
+
+//Site Status update
+exports.updateComplianceStatus = async (req, res) => {
+  const { complianceReportId } = req.params;
+  const { status } = req.body; // Expected: 'approved' or 'disapproved'
+
+  if (!["approved", "disapproved"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status provided." });
+  }
+
+  try {
+    // Fetch the compliance report
+    const complianceReport = await prisma.complianceReport.findUnique({
+      where: { id: parseInt(complianceReportId) },
+      include: { siteAssignment: true },
+    });
+
+    if (!complianceReport) {
+      return res.status(404).json({ error: "Compliance report not found." });
+    }
+
+    // Update the compliance report status
+    const updatedComplianceReport = await prisma.complianceReport.update({
+      where: { id: parseInt(complianceReportId) },
+      data: { status },
+    });
+
+    // If status is 'approved', delete the corresponding site assignment
+    if (status === "approved" && complianceReport.siteAssignmentId) {
+      await prisma.siteAssignment.delete({
+        where: { id: complianceReport.siteAssignmentId },
+      });
+    }
+
+    res.status(200).json({
+      message: `Compliance report status updated to '${status}'.`,
+      updatedComplianceReport,
+    });
+  } catch (error) {
+    console.error("Error updating compliance report status:", error);
+    res.status(500).json({
+      error: "An error occurred while updating the status.",
+      details: error.message,
+    });
   }
 };
