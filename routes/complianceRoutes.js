@@ -12,15 +12,23 @@ const router = express.Router();
 const models = ["Structure", "Poster", "Illumination", "Route", "Side"];
 
 models.forEach((model) => {
-  router.post(`/${model.toLowerCase()}`, authToken, complianceController.createEntity(model));
-  router.get(`/${model.toLowerCase()}`, authToken, complianceController.getAllEntities(model));
+  router.post(
+    `/${model.toLowerCase()}`,
+    authToken,
+    complianceController.createEntity(model)
+  );
+  router.get(
+    `/${model.toLowerCase()}`,
+    authToken,
+    complianceController.getAllEntities(model)
+  );
 });
 
 // POST request to create compliance report
 router.post(
   "/compliance-report",
   authToken,
-  upload.array("imageUrls", 2), // Multiple image uploads
+  upload.array("imageUrls", 5), // Multiple image uploads
   complianceController.complianceUpload
 );
 
@@ -30,6 +38,18 @@ router.put(
   authToken,
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   complianceController.updateComplianceStatus
+);
+
+router.get(
+  "/compliance-report",
+  authToken,
+  complianceController.getAllComplianceUploads
+);
+
+router.get(
+  "/compliance-report/:id",
+  authToken,
+  complianceController.viewComplianceUpload
 );
 
 module.exports = router;

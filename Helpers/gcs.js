@@ -13,6 +13,7 @@ const storage = new Storage({
 const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 
 // Function to upload to GCS
+
 const uploadToGCS = async (file) => {
   return new Promise((resolve, reject) => {
     const blob = bucket.file(Date.now() + path.extname(file.originalname)); // Create a unique filename
@@ -40,4 +41,26 @@ const uploadToGCS = async (file) => {
   });
 };
 
-module.exports = { uploadToGCS };
+const uploadGCS = async ({ buffer, filename }) => {
+  return new Promise((resolve, reject) => {
+    const blob = bucket.file(Date.now() + "-" + filename);
+    const blobStream = blob.createWriteStream({
+      resumable: false,
+      contentType: "image/jpeg",
+    });
+
+    blobStream.on("error", (err) => reject(err));
+    blobStream.on("finish", async () => {
+      try {
+        await blob.makePublic();
+        resolve(`https://storage.googleapis.com/${bucket.name}/${blob.name}`);
+      } catch (err) {
+        reject(err);
+      }
+    });
+
+    blobStream.end(buffer);
+  });
+};
+
+module.exports = { uploadToGCS, uploadGCS };

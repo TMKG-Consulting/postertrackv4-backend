@@ -90,6 +90,7 @@ model ComplianceReport {
   sideId           Int
   comment          String
   imageUrls        String[]       @default([])
+  geolocations     Json
   uploadedBy       Int
   uploadedAt       DateTime       @default(now())
   status           String         @default("pending")
