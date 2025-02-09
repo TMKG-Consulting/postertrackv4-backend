@@ -466,9 +466,16 @@ exports.deleteCampaign = async (req, res) => {
       return res.status(404).json({ error: "Campaign not found." });
     }
 
-    // Delete related site assignments first (if any)
+    // Delete related compliance reports first
+    await prisma.complianceReport.deleteMany({
+      where: {
+        siteAssignment: { campaignId: parseInt(id) },
+      },
+    });
+
+    // Delete related site assignments
     await prisma.siteAssignment.deleteMany({
-      where: { campaignId: campaign.id },
+      where: { campaignId: parseInt(id) },
     });
 
     // Delete the campaign
@@ -479,9 +486,10 @@ exports.deleteCampaign = async (req, res) => {
     res.status(200).json({ message: "Campaign successfully deleted." });
   } catch (error) {
     console.error("Error deleting campaign:", error);
-    res
-      .status(500)
-      .json({ error: "An error occurred while deleting the campaign." });
+    res.status(500).json({
+      error: "An error occurred while deleting the campaign.",
+      details: error.message,
+    });
   }
 };
 
