@@ -6,9 +6,6 @@ const { authToken, authRole } = require("../middleware/auth");
 
 const router = express.Router();
 
-// router.post("/structure", authToken, complianceController.createStructure);
-// router.get("/structure", authToken, complianceController.getAllStructures);
-
 const models = ["Structure", "Poster", "Illumination", "Route", "Side"];
 
 models.forEach((model) => {
@@ -23,6 +20,8 @@ models.forEach((model) => {
     complianceController.getAllEntities(model)
   );
 });
+
+router.get("/entities", authToken, complianceController.getAllComplianceEntities);
 
 // POST request to create compliance report
 router.post(

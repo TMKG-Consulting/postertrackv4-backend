@@ -371,41 +371,6 @@ exports.viewComplianceUpload = async (req, res) => {
   }
 };
 
-exports.createStructure = async (req, res) => {
-  const { name } = req.body;
-
-  if (!name) {
-    return res.status(400).json({ error: "Structure name is required." });
-  }
-
-  try {
-    const structure = await prisma.structure.create({
-      data: { name },
-    });
-    res
-      .status(201)
-      .json({ message: "Structure created successfully", structure });
-  } catch (error) {
-    console.error("Error creating structure:", error);
-    res
-      .status(500)
-      .json({ error: "An error occurred while creating the structure." });
-  }
-};
-
-// Get all structures
-exports.getAllStructures = async (req, res) => {
-  try {
-    const structures = await prisma.structure.findMany();
-    res.status(200).json({ structures });
-  } catch (error) {
-    console.error("Error fetching structures:", error);
-    res
-      .status(500)
-      .json({ error: "An error occurred while fetching structures." });
-  }
-};
-
 //Create other entities (posters, illuminations, routes, sides) in a similar way
 exports.createEntity = (model) => async (req, res) => {
   const { name } = req.body;
@@ -438,6 +403,36 @@ exports.getAllEntities = (model) => async (req, res) => {
       .json({ error: `An error occurred while fetching ${model}s.` });
   }
 };
+
+exports.getAllComplianceEntities = async (req, res) => {
+  try {
+    const [structures, posters, illuminations, routes, sides] = await Promise.all([
+      prisma.structure.findMany(),
+      prisma.poster.findMany(),
+      prisma.illumination.findMany(),
+      prisma.route.findMany(),
+      prisma.side.findMany(),
+    ]);
+
+    res.status(200).json({
+      message: "Entities fetched successfully.",
+      data: {
+        structures,
+        posters,
+        illuminations,
+        routes,
+        sides,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching entities:", error);
+    res.status(500).json({
+      error: "An error occurred while fetching entities.",
+      details: error.message,
+    });
+  }
+};
+
 
 //Site Status update
 exports.updateComplianceStatus = async (req, res) => {

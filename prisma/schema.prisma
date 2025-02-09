@@ -89,7 +89,7 @@ model ComplianceReport {
   routeId          Int
   sideId           Int
   comment          String
-  imageUrls        String[]       @default([])
+  imageUrls        String[]      
   geolocations     Json
   uploadedBy       Int
   uploadedAt       DateTime       @default(now())
