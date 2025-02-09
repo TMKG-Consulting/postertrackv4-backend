@@ -94,7 +94,7 @@ model ComplianceReport {
   uploadedBy       Int
   uploadedAt       DateTime       @default(now())
   status           String         @default("pending")
-  siteAssignmentId Int
+  siteAssignmentId Int?
   bsv              String         @default("0%")
   city             String
   campaign         Campaign       @relation(fields: [campaignId], references: [id])
@@ -102,7 +102,7 @@ model ComplianceReport {
   Poster           Poster         @relation(fields: [posterId], references: [id])
   Route            Route          @relation(fields: [routeId], references: [id])
   Side             Side           @relation(fields: [sideId], references: [id])
-  siteAssignment   SiteAssignment @relation(fields: [siteAssignmentId], references: [id])
+  siteAssignment   SiteAssignment? @relation(fields: [siteAssignmentId], references: [id], onDelete: Cascade)
   Structure        Structure      @relation(fields: [structureId], references: [id])
   FieldAuditor     User           @relation("FieldAuditor", fields: [uploadedBy], references: [id])
 

@@ -544,6 +544,7 @@ exports.getAssignedSites = async (req, res) => {
       }
 
       return {
+        siteAssignmentId: assignment.id,
         siteCode: assignment.siteCode,
         address: siteData?.location || "N/A",
         state: siteData?.state || "N/A",

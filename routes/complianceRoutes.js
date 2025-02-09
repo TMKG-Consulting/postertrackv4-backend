@@ -25,7 +25,7 @@ router.get("/entities", authToken, complianceController.getAllComplianceEntities
 
 // POST request to create compliance report
 router.post(
-  "/compliance-report",
+  "/compliance-report/:siteAssignmentId",
   authToken,
   upload.array("imageUrls", 5), // Multiple image uploads
   complianceController.complianceUpload
@@ -33,7 +33,7 @@ router.post(
 
 // Update site status
 router.put(
-  "/compliance/:complianceReportId/status",
+  "/compliance/:id/status",
   authToken,
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   complianceController.updateComplianceStatus

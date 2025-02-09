@@ -135,6 +135,7 @@ const { applyWatermarks } = require("../Helpers/watermark");
 // Create a new structure
 
 exports.complianceUpload = async (req, res) => {
+  const { siteAssignmentId } = req.params;
   const {
     siteCode,
     campaignId,
@@ -156,6 +157,10 @@ exports.complianceUpload = async (req, res) => {
   } = req.body;
 
   const fieldAuditorId = req.user?.id;
+
+  if (!siteAssignmentId) {
+    return res.status(400).json({ error: "Site Assignment ID is required." });
+  }
 
   try {
     const requiredFields = {
@@ -182,13 +187,22 @@ exports.complianceUpload = async (req, res) => {
       }
     }
 
+    // Verify site assignment and site code match
     const siteAssignment = await prisma.siteAssignment.findFirst({
-      where: { fieldAuditorId },
+      where: { id: parseInt(siteAssignmentId), fieldAuditorId },
     });
+
     if (!siteAssignment) {
-      return res
-        .status(404)
-        .json({ error: "No site assignment found for this auditor." });
+      return res.status(404).json({
+        error:
+          "No site assignment found for this auditor or invalid site assignment.",
+      });
+    }
+
+    if (siteAssignment.siteCode !== siteCode) {
+      return res.status(400).json({
+        error: `Provided site code '${siteCode}' does not match the assigned site code '${siteAssignment.siteCode}'.`,
+      });
     }
 
     const existingReport = await prisma.complianceReport.findFirst({
@@ -275,7 +289,7 @@ exports.complianceUpload = async (req, res) => {
         Side: { connect: { id: parseInt(sideId) } },
         Structure: { connect: { id: parseInt(structureId) } },
         FieldAuditor: { connect: { id: parseInt(fieldAuditorId) } },
-        siteAssignment: { connect: { id: parseInt(siteAssignment.id) } },
+        siteAssignment: { connect: { id: parseInt(siteAssignmentId) } },
       },
     });
 
@@ -406,13 +420,14 @@ exports.getAllEntities = (model) => async (req, res) => {
 
 exports.getAllComplianceEntities = async (req, res) => {
   try {
-    const [structures, posters, illuminations, routes, sides] = await Promise.all([
-      prisma.structure.findMany(),
-      prisma.poster.findMany(),
-      prisma.illumination.findMany(),
-      prisma.route.findMany(),
-      prisma.side.findMany(),
-    ]);
+    const [structures, posters, illuminations, routes, sides] =
+      await Promise.all([
+        prisma.structure.findMany(),
+        prisma.poster.findMany(),
+        prisma.illumination.findMany(),
+        prisma.route.findMany(),
+        prisma.side.findMany(),
+      ]);
 
     res.status(200).json({
       message: "Entities fetched successfully.",
@@ -433,20 +448,20 @@ exports.getAllComplianceEntities = async (req, res) => {
   }
 };
 
-
 //Site Status update
 exports.updateComplianceStatus = async (req, res) => {
-  const { complianceReportId } = req.params;
-  const { status } = req.body; // Expected: 'approved' or 'disapproved'
+  const { id } = req.params;
+  const { status } = req.body;
 
-  if (!["approved", "disapproved"].includes(status)) {
-    return res.status(400).json({ error: "Invalid status provided." });
+  if (!id || !status) {
+    return res
+      .status(400)
+      .json({ error: "Compliance ID and status are required." });
   }
 
   try {
-    // Fetch the compliance report
     const complianceReport = await prisma.complianceReport.findUnique({
-      where: { id: parseInt(complianceReportId) },
+      where: { id: parseInt(id) },
       include: { siteAssignment: true },
     });
 
@@ -454,28 +469,27 @@ exports.updateComplianceStatus = async (req, res) => {
       return res.status(404).json({ error: "Compliance report not found." });
     }
 
-    // Update the compliance report status
-    const updatedComplianceReport = await prisma.complianceReport.update({
-      where: { id: parseInt(complianceReportId) },
+    // Update compliance report status
+    await prisma.complianceReport.update({
+      where: { id: parseInt(id) },
       data: { status },
     });
 
-    // If status is 'approved', delete the corresponding site assignment
-    if (status === "approved" && complianceReport.siteAssignmentId) {
-      await prisma.siteAssignment.delete({
+    if (complianceReport.siteAssignmentId) {
+      // Update status in the siteAssignment table based on the compliance status
+      await prisma.siteAssignment.update({
         where: { id: complianceReport.siteAssignmentId },
+        data: { status: status.toLowerCase() }, // Keeping the status aligned
       });
     }
 
     res.status(200).json({
-      message: `Compliance report status updated to '${status}'.`,
-      updatedComplianceReport,
+      message: "Compliance report status successfully updated.",
     });
   } catch (error) {
     console.error("Error updating compliance report status:", error);
     res.status(500).json({
-      error: "An error occurred while updating the status.",
-      details: error.message,
+      error: "An error occurred while updating compliance report status.",
     });
   }
 };
