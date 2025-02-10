@@ -548,6 +548,8 @@ exports.getAssignedSites = async (req, res) => {
         siteCode: assignment.siteCode,
         address: siteData?.location || "N/A",
         state: siteData?.state || "N/A",
+        brand: siteData?.brand || "N/A",
+        city: siteData?.city || "N/A",
         boardType: siteData?.format || "N/A",
         mediaOwner: siteData?.mediaOwner || "N/A",
         campaignID: assignment.campaign?.campaignID || "N/A",
