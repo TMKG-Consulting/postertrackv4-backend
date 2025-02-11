@@ -552,6 +552,7 @@ exports.getAssignedSites = async (req, res) => {
         city: siteData?.city || "N/A",
         boardType: siteData?.format || "N/A",
         mediaOwner: siteData?.mediaOwner || "N/A",
+        mainCampaignId: assignment.campaignId || "N/A",
         campaignID: assignment.campaign?.campaignID || "N/A",
         uploadedAt: assignment.campaign?.uploadedAt,
         advertiser: assignment.campaign?.client?.advertiser || "Unknown",

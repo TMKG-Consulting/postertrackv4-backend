@@ -493,3 +493,48 @@ exports.updateComplianceStatus = async (req, res) => {
     });
   }
 };
+
+// Controller to fetch pending compliance report sites
+exports.getPendingComplianceSites = async (req, res) => {
+  try {
+    const pendingComplianceReports = await prisma.complianceReport.findMany({
+      where: { status: "pending" },
+      include: {
+        siteAssignment: true,
+        campaign: {
+          select: {
+            campaignID: true,
+            client: { select: { advertiser: true } },
+          },
+        },
+      },
+    });
+
+    if (!pendingComplianceReports.length) {
+      return res.status(404).json({
+        message: "No pending compliance reports found.",
+      });
+    }
+
+    const formattedData = pendingComplianceReports.map((report) => ({
+      complianceId: report.id,
+      siteCode: report.siteCode,
+      campaignId: report.campaign?.campaignID || "N/A",
+      advertiser: report.campaign?.client?.advertiser || "Unknown",
+      uploadedAt: report.createdAt,
+      fieldAuditorId: report.fieldAuditorId,
+      status: report.status,
+      address: report.siteAssignment?.address || "N/A",
+    }));
+
+    res.status(200).json({
+      message: "Pending compliance reports retrieved successfully.",
+      pendingSites: formattedData,
+    });
+  } catch (error) {
+    console.error("Error fetching pending compliance sites:", error);
+    res.status(500).json({
+      error: "An error occurred while retrieving pending compliance sites.",
+    });
+  }
+};

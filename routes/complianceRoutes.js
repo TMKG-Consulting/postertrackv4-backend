@@ -21,7 +21,11 @@ models.forEach((model) => {
   );
 });
 
-router.get("/entities", authToken, complianceController.getAllComplianceEntities);
+router.get(
+  "/entities",
+  authToken,
+  complianceController.getAllComplianceEntities
+);
 
 // POST request to create compliance report
 router.post(
@@ -49,6 +53,12 @@ router.get(
   "/compliance-report/:id",
   authToken,
   complianceController.viewComplianceUpload
+);
+
+router.get(
+  "/compliance/pending-approval",
+  authToken,
+  complianceController.getPendingComplianceSites
 );
 
 module.exports = router;
