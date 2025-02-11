@@ -91,6 +91,7 @@ model ComplianceReport {
   comment          String
   imageUrls        String[]      
   geolocations     Json
+  capturedTimestamps  Json
   uploadedBy       Int
   uploadedAt       DateTime       @default(now())
   status           String         @default("pending")
