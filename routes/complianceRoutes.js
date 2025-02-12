@@ -61,4 +61,22 @@ router.get(
   complianceController.getPendingComplianceSites
 );
 
+router.get(
+  "/check-upload/:siteAssignmentId",
+  authToken,
+  complianceController.checkComplianceUpload
+);
+
+router.get(
+  "/campaign-compliance/uploads",
+  authToken,
+  complianceController.getAllUploadedCampaigns
+);
+
+router.get(
+  "/view-campaign-compliance/:campaignID",
+  authToken,
+  complianceController.getComplianceReportsForCampaign
+);
+
 module.exports = router;

@@ -5,178 +5,6 @@ const { transporter } = require("../Helpers/transporter");
 const ExifParser = require("exif-parser");
 const { applyWatermarks } = require("../Helpers/watermark");
 
-// exports.complianceUpload = async (req, res) => {
-//   const { siteAssignmentId } = req.params;
-//   const {
-//     siteCode,
-//     campaignId,
-//     advertiser,
-//     brand,
-//     city,
-//     address,
-//     boardType,
-//     mediaOwner,
-//     message,
-//     comment,
-//     status,
-//     bsv,
-//     structureId,
-//     posterId,
-//     illuminationId,
-//     routeId,
-//     sideId,
-//   } = req.body;
-
-//   const fieldAuditorId = req.user?.id;
-
-//   if (!siteAssignmentId) {
-//     return res.status(400).json({ error: "Site Assignment ID is required." });
-//   }
-
-//   try {
-//     const requiredFields = {
-//       siteCode,
-//       campaignId,
-//       advertiser,
-//       brand,
-//       city,
-//       address,
-//       boardType,
-//       mediaOwner,
-//       message,
-//       comment,
-//       structureId,
-//       posterId,
-//       illuminationId,
-//       routeId,
-//       sideId,
-//     };
-
-//     for (const [key, value] of Object.entries(requiredFields)) {
-//       if (!value) {
-//         return res.status(400).json({ error: `${key} is required.` });
-//       }
-//     }
-
-//     // Verify site assignment and site code match
-//     const siteAssignment = await prisma.siteAssignment.findFirst({
-//       where: { id: parseInt(siteAssignmentId), fieldAuditorId },
-//     });
-
-//     if (!siteAssignment) {
-//       return res.status(404).json({
-//         error:
-//           "No site assignment found for this auditor or invalid site assignment.",
-//       });
-//     }
-
-//     if (siteAssignment.siteCode !== siteCode) {
-//       return res.status(400).json({
-//         error: `Provided site code '${siteCode}' does not match the assigned site code '${siteAssignment.siteCode}'.`,
-//       });
-//     }
-
-//     const existingReport = await prisma.complianceReport.findFirst({
-//       where: { siteCode, campaignId: parseInt(campaignId) },
-//     });
-
-//     if (existingReport) {
-//       return res.status(409).json({
-//         error:
-//           "A compliance report already exists for this siteCode and campaign.",
-//       });
-//     }
-
-//     let imageUrls = [];
-//     let capturedTimestamps = [];
-//     let geolocations = [];
-
-//     if (req.files?.length > 0) {
-//       for (const file of req.files) {
-//         try {
-//           const buffer = file.buffer;
-
-//           if (!buffer) {
-//             return res
-//               .status(400)
-//               .json({ error: `Invalid file data for '${file.originalname}'` });
-//           }
-
-//           const parser = ExifParser.create(buffer);
-//           const exifData = parser.parse();
-
-//           const latitude = exifData.tags?.GPSLatitude;
-//           const longitude = exifData.tags?.GPSLongitude;
-//           if (!latitude || !longitude) {
-//             return res.status(400).json({
-//               error: `Image '${file.originalname}' must contain GPS geotag information.`,
-//             });
-//           }
-
-//           const captureDate = exifData.tags.DateTimeOriginal;
-//           const timestamp = captureDate
-//             ? new Date(captureDate * 1000).toISOString()
-//             : "";
-//           capturedTimestamps.push(timestamp);
-//           geolocations.push({ latitude, longitude });
-
-//           // Apply watermarks
-//           const watermarkedBuffer = await applyWatermarks(buffer, captureDate);
-
-//           const uploadedUrl = await uploadGCS({
-//             buffer: watermarkedBuffer,
-//             filename: file.originalname,
-//           });
-
-//           imageUrls.push(uploadedUrl);
-//         } catch (error) {
-//           return res.status(500).json({
-//             error: "Error processing or uploading images.",
-//             details: error.message,
-//           });
-//         }
-//       }
-//     }
-
-//     const complianceReport = await prisma.complianceReport.create({
-//       data: {
-//         siteCode,
-//         advertiser,
-//         brand,
-//         city,
-//         address,
-//         boardType,
-//         mediaOwner,
-//         message,
-//         comment,
-//         status: status || "pending",
-//         bsv: bsv || "0%",
-//         imageUrls,
-//         geolocations: JSON.stringify(geolocations),
-//         campaign: { connect: { id: parseInt(campaignId) } },
-//         Illumination: { connect: { id: parseInt(illuminationId) } },
-//         Poster: { connect: { id: parseInt(posterId) } },
-//         Route: { connect: { id: parseInt(routeId) } },
-//         Side: { connect: { id: parseInt(sideId) } },
-//         Structure: { connect: { id: parseInt(structureId) } },
-//         FieldAuditor: { connect: { id: parseInt(fieldAuditorId) } },
-//         siteAssignment: { connect: { id: parseInt(siteAssignmentId) } },
-//       },
-//     });
-
-//     res.status(201).json({
-//       message: "Compliance report successfully created.",
-//       complianceReport,
-//     });
-//   } catch (error) {
-//     console.error("Error creating compliance report:", error);
-//     res.status(500).json({
-//       error: "An error occurred while creating the compliance report.",
-//       details: error.message,
-//     });
-//   }
-// };
-
 exports.complianceUpload = async (req, res) => {
   const { siteAssignmentId } = req.params;
   const {
@@ -362,25 +190,55 @@ exports.complianceUpload = async (req, res) => {
 };
 
 exports.getAllComplianceUploads = async (req, res) => {
+  const { user } = req;
+  let { page = 1, limit = 10 } = req.query; // Default to page 1, 10 records per page
+
+  page = parseInt(page);
+  limit = parseInt(limit);
+  const offset = (page - 1) * limit;
+
   try {
-    // Fetch all compliance reports along with their related data
-    const complianceReports = await prisma.complianceReport.findMany({
-      include: {
-        Illumination: true,
-        Poster: true,
-        Route: true,
-        Side: true,
-        Structure: true,
-        siteAssignment: true,
-        FieldAuditor: {
-          select: {
-            id: true,
-            firstname: true,
-            lastname: true,
+    if (!user || !user.role) {
+      return res.status(403).json({ error: "Unauthorized access." });
+    }
+
+    let whereClause = {}; // Default: Super Admin & Chief Account Manager see all records
+
+    if (user.role === "ACCOUNT_MANAGER") {
+      whereClause = {
+        campaign: {
+          accountManagerId: user.id, // Account Managers only see their campaigns
+        },
+      };
+    } else if (!["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"].includes(user.role)) {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+    // Fetch compliance reports with pagination
+    const [complianceReports, totalRecords] = await Promise.all([
+      prisma.complianceReport.findMany({
+        where: whereClause,
+        include: {
+          Illumination: true,
+          Poster: true,
+          Route: true,
+          Side: true,
+          Structure: true,
+          siteAssignment: true,
+          FieldAuditor: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+            },
           },
         },
-      },
-    });
+        skip: offset,
+        take: limit,
+        orderBy: { uploadedAt: "desc" }, // Sort by latest uploads
+      }),
+      prisma.complianceReport.count({ where: whereClause }),
+    ]);
 
     if (complianceReports.length === 0) {
       return res.status(404).json({ message: "No compliance uploads found." });
@@ -389,6 +247,12 @@ exports.getAllComplianceUploads = async (req, res) => {
     res.status(200).json({
       message: "Compliance uploads retrieved successfully.",
       data: complianceReports,
+      pagination: {
+        totalRecords,
+        totalPages: Math.ceil(totalRecords / limit),
+        currentPage: page,
+        perPage: limit,
+      },
     });
   } catch (error) {
     console.error("Error fetching compliance uploads:", error);
@@ -504,142 +368,6 @@ exports.getAllComplianceEntities = async (req, res) => {
 };
 
 //Site Status update
-
-// exports.updateComplianceStatus = async (req, res) => {
-//   const { id } = req.params;
-//   const { status, disapprovalReason } = req.body;
-
-//   if (!id || !status) {
-//     return res
-//       .status(400)
-//       .json({ error: "Compliance ID and status are required." });
-//   }
-
-//   try {
-//     const complianceReport = await prisma.complianceReport.findUnique({
-//       where: { id: parseInt(id) },
-//       include: {
-//         siteAssignment: true,
-//         campaign: {
-//           include: {
-//             client: { select: { advertiser: true } },
-//             accountManager: true,
-//           },
-//         },
-//         Poster: true,
-//         Structure: true,
-//       },
-//     });
-
-//     if (!complianceReport) {
-//       return res.status(404).json({ error: "Compliance report not found." });
-//     }
-
-//     if (status === "disapproved") {
-//       if (!disapprovalReason) {
-//         return res
-//           .status(400)
-//           .json({ error: "Disapproval reason is required." });
-//       }
-
-//       // Remove compliance report
-//       await prisma.complianceReport.delete({
-//         where: { id: parseInt(id) },
-//       });
-
-//       // Update site assignment status
-//       if (complianceReport.siteAssignmentId) {
-//         await prisma.siteAssignment.update({
-//           where: { id: complianceReport.siteAssignmentId },
-//           data: { status: "disapproved" },
-//         });
-//       }
-
-//       return res.status(200).json({
-//         message: "Compliance report disapproved and removed successfully.",
-//       });
-//     }
-
-//     // Update compliance report status
-//     await prisma.complianceReport.update({
-//       where: { id: parseInt(id) },
-//       data: { status },
-//     });
-
-//     if (complianceReport.siteAssignmentId) {
-//       // Update site assignment status
-//       await prisma.siteAssignment.update({
-//         where: { id: complianceReport.siteAssignmentId },
-//         data: { status: status.toLowerCase() },
-//       });
-//     }
-
-//     if (
-//       status === "approved" &&
-//       (complianceReport.Poster.name !== "Ok" ||
-//         complianceReport.Structure.name !== "Ok")
-//     ) {
-//       const clientName =
-//         complianceReport.campaign?.client?.advertiser || "Client";
-//       const aberrationDetails = `
-//         Dear ${clientName},
-
-//         Find below details of aberration on your OOH display as captured by our field force:
-
-//         Campaign Code: ${complianceReport.campaign?.campaignID || "N/A"}
-//         SITE ID: ${complianceReport.siteCode || "N/A"}
-//         Brand: ${complianceReport.brand || "N/A"}
-//         City: ${complianceReport.city || "N/A"}
-//         Location: ${complianceReport.address || "N/A"}
-//         Format: ${complianceReport.boardType || "N/A"}
-//         Media Owner: ${complianceReport.mediaOwner || "N/A"}
-//         Aberration: (blank)
-
-//         Poster Status: ${complianceReport.Poster.name}
-//         Visit Date-Time: ${complianceReport.capturedTimestamps || "N/A"}
-//       `;
-
-//       const attachments = complianceReport.imageUrls.map((url) => ({
-//         filename: url.split("/").pop(),
-//         path: url,
-//       }));
-
-//       const clientEmail = complianceReport.campaign?.client?.email;
-//       const accountManagerEmail =
-//         complianceReport.campaign?.accountManager?.email;
-
-//       if (!clientEmail || !accountManagerEmail) {
-//         console.warn("Missing client or account manager email.");
-//       }
-
-//       const recipients = [clientEmail, accountManagerEmail].filter(Boolean);
-
-//       try {
-//         await transporter.sendMail({
-//           from: process.env.EMAIL_USER,
-//           to: recipients,
-//           subject: "OOH Compliance Aberration Alert!",
-//           text: aberrationDetails,
-//           attachments,
-//         });
-
-//         console.log("Aberration alert email sent successfully.");
-//       } catch (emailError) {
-//         console.error("Error sending email:", emailError);
-//       }
-//     }
-
-//     res.status(200).json({
-//       message: "Compliance report status successfully updated.",
-//     });
-//   } catch (error) {
-//     console.error("Error updating compliance report status:", error);
-//     res.status(500).json({
-//       error: "An error occurred while updating compliance report status.",
-//     });
-//   }
-// };
-
 exports.updateComplianceStatus = async (req, res) => {
   const { id } = req.params;
   const { status, disapprovalReason } = req.body;
@@ -756,8 +484,7 @@ exports.updateComplianceStatus = async (req, res) => {
         Location: ${complianceReport.address || "N/A"}
         Format: ${complianceReport.boardType || "N/A"}
         Media Owner: ${complianceReport.mediaOwner || "N/A"}
-        Aberration: (blank)
-
+        Aberration: ${complianceReport.Poster.name || "N/A"}
         Poster Status: ${complianceReport.Poster.name || "N/A"}
         Visit Date-Time: ${visitDateTime}
       `;
@@ -766,8 +493,6 @@ exports.updateComplianceStatus = async (req, res) => {
         filename: url.split("/").pop(),
         path: url,
       }));
-
-      console.log(visitDateTime);
 
       const clientEmail = complianceReport.campaign?.client?.email;
       const accountManagerEmail =
@@ -852,6 +577,188 @@ exports.getPendingComplianceSites = async (req, res) => {
     console.error("Error fetching pending compliance sites:", error);
     res.status(500).json({
       error: "An error occurred while retrieving pending compliance sites.",
+    });
+  }
+};
+
+// Controller to fetch compliance reports by site code
+exports.checkComplianceUpload = async (req, res) => {
+  const { siteAssignmentId } = req.params;
+
+  try {
+    // Find compliance report by siteAssignmentId
+    const complianceReport = await prisma.complianceReport.findFirst({
+      where: { siteAssignmentId: parseInt(siteAssignmentId) },
+      include: {
+        Structure: true,
+        Poster: true,
+        Illumination: true,
+        Route: true,
+        Side: true,
+      },
+    });
+
+    if (!complianceReport) {
+      return res.status(404).json({
+        error: "No compliance upload found for this site assignment.",
+      });
+    }
+
+    res.status(200).json(complianceReport);
+  } catch (error) {
+    console.error("Error fetching compliance report:", error);
+    res.status(500).json({
+      error: "An error occurred while fetching the compliance report.",
+    });
+  }
+};
+
+exports.getAllUploadedCampaigns = async (req, res) => {
+  const { user } = req;
+  let { page = 1, limit = 10 } = req.query;
+
+  page = parseInt(page);
+  limit = parseInt(limit);
+  const offset = (page - 1) * limit;
+
+  try {
+    if (!user || !user.role) {
+      return res.status(403).json({ error: "Unauthorized access." });
+    }
+
+    let whereClause = {
+      ComplianceReport: { some: {} }, // Ensure only campaigns with compliance uploads
+    };
+
+    if (user.role === "ACCOUNT_MANAGER") {
+      whereClause.accountManagerId = user.id; // Account Managers only see their campaigns
+    } else if (!["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"].includes(user.role)) {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+    // Fetch campaigns with compliance uploads and their total sites
+    const [campaigns, totalRecords] = await Promise.all([
+      prisma.campaign.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          campaignID: true,
+          client: {
+            select: { advertiser: true },
+          },
+          uploadedAt: true, // Date uploaded
+          _count: {
+            select: { ComplianceReport: true }, // Count of compliance reports (sites)
+          },
+        },
+        skip: offset,
+        take: limit,
+        orderBy: { uploadedAt: "desc" }, // Sort by latest uploads
+      }),
+      prisma.campaign.count({ where: whereClause }),
+    ]);
+
+    if (campaigns.length === 0) {
+      return res.status(404).json({ message: "No campaign uploads found." });
+    }
+
+    // Format response
+    const formattedCampaigns = campaigns.map((campaign) => ({
+      id: campaign.id,
+      campaignID: campaign.campaignID,
+      clientName: campaign.client?.advertiser || "N/A",
+      dateUploaded: campaign.uploadedAt,
+      totalSites: campaign._count.ComplianceReport || 0,
+    }));
+
+    res.status(200).json({
+      message: "Campaign uploads retrieved successfully.",
+      data: formattedCampaigns,
+      pagination: {
+        totalRecords,
+        totalPages: Math.ceil(totalRecords / limit),
+        currentPage: page,
+        perPage: limit,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching uploaded campaigns:", error);
+    res.status(500).json({
+      error: "An error occurred while fetching uploaded campaigns.",
+      details: error.message,
+    });
+  }
+};
+
+exports.getComplianceReportsForCampaign = async (req, res) => {
+  const { campaignID } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+  const userRole = req.user.role;
+  const accountManagerID = req.user.id; 
+
+  if (!campaignID) {
+    return res.status(400).json({ error: "Campaign ID is required." });
+  }
+
+  try {
+    // Base query conditions
+    const whereCondition = { campaignId: parseInt(campaignID) };
+
+    // Restrict data access for Account Managers
+    if (userRole === "ACCOUNT_MANAGER") {
+      whereCondition["campaign.accountManagerId"] = accountManagerID;
+    }
+
+    // Fetch compliance reports with pagination
+    const complianceReports = await prisma.complianceReport.findMany({
+      where: whereCondition,
+      include: {
+        siteAssignment: true,
+        campaign: {
+          include: {
+            client: { select: { advertiser: true } },
+            accountManager: {
+              select: { firstname: true, lastname: true, email: true },
+            },
+          },
+        },
+        Poster: true,
+        Structure: true,
+        Route: true,
+        Side: true,
+        Illumination: true,
+        FieldAuditor: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+          },
+        },
+      },
+      skip: (page - 1) * limit,
+      take: parseInt(limit),
+    });
+
+    if (complianceReports.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No compliance reports found for this campaign." });
+    }
+
+    res.status(200).json({
+      message: "Compliance reports retrieved successfully.",
+      data: complianceReports,
+      pagination: {
+        currentPage: parseInt(page),
+        limit: parseInt(limit),
+        totalRecords: complianceReports.length, 
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching compliance reports:", error);
+    res.status(500).json({
+      error: "An error occurred while fetching compliance reports.",
+      details: error.message,
     });
   }
 };
