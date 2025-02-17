@@ -400,7 +400,7 @@ exports.updateComplianceStatus = async (req, res) => {
       return res.status(404).json({ error: "Compliance report not found." });
     }
 
-    // Parse capturedTimestamps field and get the first timestamp
+    // Parse captured timestamps for visit date-time
     let visitDateTime = "N/A";
     try {
       const timestamps = JSON.parse(
@@ -408,7 +408,6 @@ exports.updateComplianceStatus = async (req, res) => {
       );
       if (timestamps.length > 0) {
         const firstCapturedTimestamp = timestamps[0]?.timestamp;
-
         if (firstCapturedTimestamp) {
           visitDateTime = new Date(firstCapturedTimestamp)
             .toLocaleString("en-GB", {
@@ -420,7 +419,7 @@ exports.updateComplianceStatus = async (req, res) => {
               hour12: true,
             })
             .replace(",", " |")
-            .toLowerCase(); // Ensure "am/pm" is lowercase
+            .toLowerCase();
         }
       }
     } catch (error) {
@@ -434,37 +433,25 @@ exports.updateComplianceStatus = async (req, res) => {
           .json({ error: "Disapproval reason is required." });
       }
 
-      // Remove compliance report
-      await prisma.complianceReport.delete({
+      await prisma.complianceReport.update({
         where: { id: parseInt(id) },
+        data: { status }, // Store disapproval reason
       });
 
-      // Update site assignment status
       if (complianceReport.siteAssignmentId) {
         await prisma.siteAssignment.update({
           where: { id: complianceReport.siteAssignmentId },
-          data: { status: "disapproved" },
+          data: { status },
         });
       }
 
       return res.status(200).json({
-        message: "Compliance report disapproved and removed successfully.",
+        message: "Compliance report marked as disapproved.",
+        disapprovalReason,
       });
     }
 
-    // Update compliance report status
-    await prisma.complianceReport.update({
-      where: { id: parseInt(id) },
-      data: { status },
-    });
-
-    if (complianceReport.siteAssignmentId) {
-      await prisma.siteAssignment.update({
-        where: { id: complianceReport.siteAssignmentId },
-        data: { status: status.toLowerCase() },
-      });
-    }
-
+    // Handle approval logic and email notification for aberrations
     if (
       status === "approved" &&
       (complianceReport.Poster.name !== "Ok" ||
@@ -595,11 +582,9 @@ exports.getPendingComplianceSites = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching pending compliance sites:", error);
-    res
-      .status(500)
-      .json({
-        error: "An error occurred while retrieving pending compliance sites.",
-      });
+    res.status(500).json({
+      error: "An error occurred while retrieving pending compliance sites.",
+    });
   }
 };
 
@@ -782,5 +767,41 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
       error: "An error occurred while fetching compliance reports.",
       details: error.message,
     });
+  }
+};
+
+exports.updateBSVScore = async (req, res) => {
+  const { id } = req.params;
+  const { bsv } = req.body;
+
+  if (!bsv) {
+    return res.status(400).json({ error: "BSV score is required." });
+  }
+
+  try {
+    // Check if compliance report exists
+    const complianceReport = await prisma.complianceReport.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!complianceReport) {
+      return res.status(404).json({ error: "Compliance report not found." });
+    }
+
+    // Update BSV scores
+    const updatedCompliance = await prisma.complianceReport.update({
+      where: { id: parseInt(id) },
+      data: { bsv },
+    });
+
+    res.status(200).json({
+      message: "BSV score updated successfully.",
+      updatedCompliance,
+    });
+  } catch (error) {
+    console.error("Error updating BSV score:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while updating BSV score." });
   }
 };

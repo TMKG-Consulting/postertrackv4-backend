@@ -79,4 +79,12 @@ router.get(
   complianceController.getComplianceReportsForCampaign
 );
 
+// Update BSV
+router.put(
+  "/compliance/:id",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
+  complianceController.updateBSVScore
+);
+
 module.exports = router;
