@@ -565,11 +565,13 @@ exports.getPendingComplianceSites = async (req, res) => {
       siteCode: report.siteCode,
       campaignId: report.campaign?.campaignID || "N/A",
       city: report.city,
+      brand: report.brand,
+      address: report.address,
+      siteAssignmentId: report.siteAssignmentId,
       advertiser: report.campaign?.client?.advertiser || "Unknown",
       uploadedAt: report.uploadedAt,
       fieldAuditorId: report.fieldAuditorId,
       status: report.status,
-      address: report.siteAssignment?.address || "N/A",
     }));
 
     res.status(200).json({
