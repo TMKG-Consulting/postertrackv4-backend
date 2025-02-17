@@ -569,7 +569,7 @@ exports.getPendingComplianceSites = async (req, res) => {
       },
       skip,
       take: limit,
-      orderBy: { createdAt: "desc" }, // Sorting by newest first
+      orderBy: { uploadedAt: "desc" }, // Sorting by newest first
     });
 
     // Format the response data
@@ -577,8 +577,9 @@ exports.getPendingComplianceSites = async (req, res) => {
       complianceId: report.id,
       siteCode: report.siteCode,
       campaignId: report.campaign?.campaignID || "N/A",
+      city: report.city,
       advertiser: report.campaign?.client?.advertiser || "Unknown",
-      uploadedAt: report.createdAt,
+      uploadedAt: report.uploadedAt,
       fieldAuditorId: report.fieldAuditorId,
       status: report.status,
       address: report.siteAssignment?.address || "N/A",
