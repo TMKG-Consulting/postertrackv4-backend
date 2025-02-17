@@ -539,6 +539,23 @@ exports.updateComplianceStatus = async (req, res) => {
 // Controller to fetch pending compliance report sites
 exports.getPendingComplianceSites = async (req, res) => {
   try {
+    // Get pagination params with defaults
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Count total pending compliance reports
+    const totalRecords = await prisma.complianceReport.count({
+      where: { status: "pending" },
+    });
+
+    if (totalRecords === 0) {
+      return res
+        .status(404)
+        .json({ message: "No pending compliance reports found." });
+    }
+
+    // Fetch paginated pending compliance reports
     const pendingComplianceReports = await prisma.complianceReport.findMany({
       where: { status: "pending" },
       include: {
@@ -550,14 +567,12 @@ exports.getPendingComplianceSites = async (req, res) => {
           },
         },
       },
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" }, // Sorting by newest first
     });
 
-    if (!pendingComplianceReports.length) {
-      return res.status(404).json({
-        message: "No pending compliance reports found.",
-      });
-    }
-
+    // Format the response data
     const formattedData = pendingComplianceReports.map((report) => ({
       complianceId: report.id,
       siteCode: report.siteCode,
@@ -571,13 +586,19 @@ exports.getPendingComplianceSites = async (req, res) => {
 
     res.status(200).json({
       message: "Pending compliance reports retrieved successfully.",
+      currentPage: page,
+      totalPages: Math.ceil(totalRecords / limit),
+      totalRecords,
+      hasNextPage: page * limit < totalRecords,
       pendingSites: formattedData,
     });
   } catch (error) {
     console.error("Error fetching pending compliance sites:", error);
-    res.status(500).json({
-      error: "An error occurred while retrieving pending compliance sites.",
-    });
+    res
+      .status(500)
+      .json({
+        error: "An error occurred while retrieving pending compliance sites.",
+      });
   }
 };
 
@@ -694,7 +715,7 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
   const { campaignID } = req.params;
   const { page = 1, limit = 10 } = req.query;
   const userRole = req.user.role;
-  const accountManagerID = req.user.id; 
+  const accountManagerID = req.user.id;
 
   if (!campaignID) {
     return res.status(400).json({ error: "Campaign ID is required." });
@@ -751,7 +772,7 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
       pagination: {
         currentPage: parseInt(page),
         limit: parseInt(limit),
-        totalRecords: complianceReports.length, 
+        totalRecords: complianceReports.length,
       },
     });
   } catch (error) {

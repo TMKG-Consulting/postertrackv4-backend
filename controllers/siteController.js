@@ -2,7 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 exports.getPendingSiteUploads = async (req, res) => {
-  const { user } = req; // Assuming `user` object contains the logged-in user's role and ID
+  const { user } = req; 
 
   try {
     let pendingSites;
