@@ -58,6 +58,7 @@ router.get(
 router.get(
   "/compliance/pending-approval",
   authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   complianceController.getPendingComplianceSites
 );
 
@@ -70,6 +71,7 @@ router.get(
 router.get(
   "/campaign-compliance/uploads",
   authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   complianceController.getAllUploadedCampaigns
 );
 
@@ -85,6 +87,12 @@ router.put(
   authToken,
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   complianceController.updateBSVScore
+);
+
+router.get(
+  "/site-pending-approval",
+  authToken,
+  complianceController.getPendingApprovalsByAuditor
 );
 
 module.exports = router;

@@ -526,25 +526,46 @@ exports.updateComplianceStatus = async (req, res) => {
 // Controller to fetch pending compliance report sites
 exports.getPendingComplianceSites = async (req, res) => {
   try {
+    // Extract user from request
+    const { user } = req;
+
     // Get pagination params with defaults
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Count total pending compliance reports
-    const totalRecords = await prisma.complianceReport.count({
-      where: { status: "pending" },
-    });
+    let whereCondition = { status: "pending" };
 
-    if (totalRecords === 0) {
-      return res
-        .status(404)
-        .json({ message: "No pending compliance reports found." });
+    // Restrict Account Managers to only see their assigned sites
+    if (user.role === "ACCOUNT_MANAGER") {
+      whereCondition = {
+        ...whereCondition,
+        campaign: {
+          accountManagerId: user.id,
+        },
+      };
     }
 
-    // Fetch paginated pending compliance reports
+    // Count total pending compliance reports based on user role
+    const totalRecords = await prisma.complianceReport.count({
+      where: whereCondition,
+    });
+
+    // If no records, return an empty array
+    if (totalRecords === 0) {
+      return res.status(200).json({
+        message: "No pending compliance reports found.",
+        currentPage: page,
+        totalPages: 0,
+        totalRecords: 0,
+        hasNextPage: false,
+        pendingSites: [],
+      });
+    }
+
+    // Fetch paginated pending compliance reports based on user role
     const pendingComplianceReports = await prisma.complianceReport.findMany({
-      where: { status: "pending" },
+      where: whereCondition,
       include: {
         siteAssignment: true,
         campaign: {
@@ -805,5 +826,85 @@ exports.updateBSVScore = async (req, res) => {
     res
       .status(500)
       .json({ error: "An error occurred while updating BSV score." });
+  }
+};
+
+exports.getPendingApprovalsByAuditor = async (req, res) => {
+  try {
+    const { userId, role } = req.user; // Extract user ID and role from the token
+
+    // Ensure only field auditors can access this route
+    if (role !== "FIELD_AUDITOR") {
+      return res
+        .status(403)
+        .json({ error: "Access denied. Unauthorized role." });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Count total pending approvals for the authenticated field auditor
+    const totalRecords = await prisma.complianceReport.count({
+      where: { fieldAuditorId: userId, status: "pending" },
+    });
+
+    // If no records, return an empty array
+    if (totalRecords === 0) {
+      return res.status(200).json({
+        message: "No pending approvals found.",
+        currentPage: page,
+        totalPages: 0,
+        totalRecords: 0,
+        hasNextPage: false,
+        pendingApprovals: [],
+      });
+    }
+
+    // Fetch pending approvals for the authenticated field auditor
+    const pendingApprovals = await prisma.complianceReport.findMany({
+      where: { fieldAuditorId: userId, status: "pending" },
+      include: {
+        siteAssignment: true,
+        campaign: {
+          select: {
+            campaignID: true,
+            client: { select: { advertiser: true } },
+          },
+        },
+      },
+      skip,
+      take: limit,
+      orderBy: { uploadedAt: "desc" }, // Sorting by newest first
+    });
+
+    // Format the response data
+    const formattedData = pendingApprovals.map((report) => ({
+      complianceId: report.id,
+      siteCode: report.siteCode,
+      campaignId: report.campaign?.campaignID || "N/A",
+      city: report.city,
+      brand: report.brand,
+      address: report.address,
+      siteAssignmentId: report.siteAssignmentId,
+      advertiser: report.campaign?.client?.advertiser || "Unknown",
+      uploadedAt: report.uploadedAt,
+      fieldAuditorId: report.fieldAuditorId,
+      status: report.status,
+    }));
+
+    res.status(200).json({
+      message: "Pending approvals retrieved successfully.",
+      currentPage: page,
+      totalPages: Math.ceil(totalRecords / limit),
+      totalRecords,
+      hasNextPage: page * limit < totalRecords,
+      pendingApprovals: formattedData,
+    });
+  } catch (error) {
+    console.error("Error fetching pending approvals:", error);
+    res.status(500).json({
+      error: "An error occurred while retrieving pending approvals.",
+    });
   }
 };
