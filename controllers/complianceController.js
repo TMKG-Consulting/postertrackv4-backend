@@ -457,6 +457,25 @@ exports.updateComplianceStatus = async (req, res) => {
       });
     }
 
+    if (status === "approved") {
+      await prisma.complianceReport.update({
+        where: { id: parseInt(id) },
+        data: { status }, 
+      });
+
+      if (complianceReport.siteAssignmentId) {
+        await prisma.siteAssignment.update({
+          where: { id: complianceReport.siteAssignmentId },
+          data: { status },
+        });
+      }
+
+      return res.status(200).json({
+        message: "Compliance report marked as approved.",
+        disapprovalReason,
+      });
+    }
+
     // Handle approval logic and email notification for aberrations
     if (
       status === "approved" &&
@@ -534,6 +553,7 @@ exports.updateComplianceStatus = async (req, res) => {
     res.status(200).json({
       message: "Compliance report status successfully updated.",
     });
+      
   } catch (error) {
     console.error("Error updating compliance report status:", error);
     res.status(500).json({
