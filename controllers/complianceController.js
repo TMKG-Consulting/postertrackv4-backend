@@ -13,6 +13,7 @@ exports.complianceUpload = async (req, res) => {
     advertiser,
     brand,
     city,
+    state,
     address,
     boardType,
     mediaOwner,
@@ -40,6 +41,7 @@ exports.complianceUpload = async (req, res) => {
       advertiser,
       brand,
       city,
+      state,
       address,
       boardType,
       mediaOwner,
@@ -154,6 +156,7 @@ exports.complianceUpload = async (req, res) => {
         advertiser,
         brand,
         city,
+        state,
         address,
         boardType,
         mediaOwner,
@@ -457,6 +460,19 @@ exports.updateComplianceStatus = async (req, res) => {
       (complianceReport.Poster.name !== "Ok" ||
         complianceReport.Structure.name !== "Ok")
     ) {
+
+      await prisma.complianceReport.update({
+        where: { id: parseInt(id) },
+        data: { status }, // Update status to approved
+      });
+
+      if (complianceReport.siteAssignmentId) {
+        await prisma.siteAssignment.update({
+          where: { id: complianceReport.siteAssignmentId },
+          data: { status },
+        });
+      }
+
       const clientName =
         complianceReport.campaign?.client?.advertiser.name || "Client";
       const aberrationDetails = `

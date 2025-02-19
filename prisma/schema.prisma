@@ -98,6 +98,7 @@ model ComplianceReport {
   siteAssignmentId Int?
   bsv              String         @default("0%")
   city             String
+  state            String
   campaign         Campaign       @relation(fields: [campaignId], references: [id])
   Illumination     Illumination   @relation(fields: [illuminationId], references: [id])
   Poster           Poster         @relation(fields: [posterId], references: [id])
