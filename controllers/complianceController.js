@@ -246,10 +246,6 @@ exports.getAllComplianceUploads = async (req, res) => {
     if (complianceReports.length === 0) {
       return res.status(200).json({
         message: "No compliance reports found.",
-        currentPage: page,
-        totalPages: 0,
-        totalRecords: 0,
-        hasNextPage: false,
         uploads: [],
       });
     }
@@ -578,10 +574,6 @@ exports.getPendingComplianceSites = async (req, res) => {
     if (totalRecords === 0) {
       return res.status(200).json({
         message: "No pending compliance reports found.",
-        currentPage: page,
-        totalPages: 0,
-        totalRecords: 0,
-        hasNextPage: false,
         pendingSites: [],
       });
     }
@@ -802,10 +794,6 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
     if (complianceReports.length === 0) {
       return res.status(200).json({
         message: "No pending compliance reports found.",
-        currentPage: page,
-        totalPages: 0,
-        totalRecords: 0,
-        hasNextPage: false,
         Reports: [],
       });
     }
