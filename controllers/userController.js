@@ -6,15 +6,7 @@ const path = require("path");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { paginate } = require("../Helpers/paginate");
-
-// Email configuration
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const {transporter} = require("../Helpers/transporter")
 
 // Create a Super Admin
 exports.createSuperAdmin = async (req, res) => {
@@ -83,7 +75,7 @@ const generateRandomPassword = () => {
 const sendEmail = async (to, subject, text) => {
   try {
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text,

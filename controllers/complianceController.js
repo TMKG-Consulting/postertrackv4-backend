@@ -515,7 +515,7 @@ exports.updateComplianceStatus = async (req, res) => {
 
       try {
         await transporter.sendMail({
-          from: process.env.EMAIL_USER,
+          from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
           to: recipients,
           subject: "OOH Compliance Aberration Alert!",
           text: aberrationDetails,
