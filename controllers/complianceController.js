@@ -244,7 +244,14 @@ exports.getAllComplianceUploads = async (req, res) => {
     ]);
 
     if (complianceReports.length === 0) {
-      return res.status(404).json({ message: "No compliance uploads found." });
+      return res.status(200).json({
+        message: "No compliance reports found.",
+        currentPage: page,
+        totalPages: 0,
+        totalRecords: 0,
+        hasNextPage: false,
+        reports: [],
+      });
     }
 
     res.status(200).json({
@@ -705,7 +712,14 @@ exports.getAllUploadedCampaigns = async (req, res) => {
     ]);
 
     if (campaigns.length === 0) {
-      return res.status(404).json({ message: "No campaign uploads found." });
+      return res.status(200).json({
+        message: "No campaign uploads found.",
+        currentPage: page,
+        totalPages: 0,
+        totalRecords: 0,
+        hasNextPage: false,
+        campaigns: [],
+      });
     }
 
     // Format response
