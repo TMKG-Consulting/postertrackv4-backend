@@ -86,7 +86,7 @@ router.put(
   "/compliance/:id",
   authToken,
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
-  complianceController.updateBSVScore
+  complianceController.updateComplianceReport
 );
 
 router.get(

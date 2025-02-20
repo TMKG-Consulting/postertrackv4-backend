@@ -60,7 +60,6 @@ exports.complianceUpload = async (req, res) => {
       }
     }
 
-    // Verify site assignment and site code match
     const siteAssignment = await prisma.siteAssignment.findFirst({
       where: { id: parseInt(siteAssignmentId), fieldAuditorId },
     });
@@ -97,7 +96,6 @@ exports.complianceUpload = async (req, res) => {
       for (const file of req.files) {
         try {
           const buffer = file.buffer;
-
           if (!buffer) {
             return res
               .status(400)
@@ -126,7 +124,6 @@ exports.complianceUpload = async (req, res) => {
           capturedTimestamps.push({ timestamp, filename: file.originalname });
           geolocations.push({ latitude, longitude });
 
-          // Apply watermarks
           const watermarkedBuffer = await applyWatermarks(
             buffer,
             captureDate,
@@ -150,7 +147,7 @@ exports.complianceUpload = async (req, res) => {
       return res.status(400).json({ error: "At least one image is required." });
     }
 
-    const complianceReport = await prisma.complianceReport.create({
+    const newComplianceReport = await prisma.complianceReport.create({
       data: {
         siteCode,
         advertiser,
@@ -179,9 +176,104 @@ exports.complianceUpload = async (req, res) => {
       },
     });
 
+    // Fetch the compliance report again to include related data
+    const complianceReport = await prisma.complianceReport.findUnique({
+      where: { id: newComplianceReport.id },
+      include: {
+        campaign: {
+          include: {
+            client: {
+              select: { advertiser: true, email: true, additionalEmail: true },
+            },
+            accountManager: { select: { firstname: true, email: true } },
+          },
+        },
+        Poster: true,
+        Structure: true,
+      },
+    });
+
+    // Validate if Poster or Structure is not OK and send aberration alert
+    const posterStatus = complianceReport.Poster.name || "N/A";
+    const structureStatus = complianceReport.Structure?.name || "N/A";
+
+    // Parse captured timestamps for visit date-time
+    let visitDateTime = "N/A";
+    try {
+      const timestamps = JSON.parse(
+        complianceReport.capturedTimestamps || "[]"
+      );
+      if (timestamps.length > 0) {
+        const firstCapturedTimestamp = timestamps[0]?.timestamp;
+        if (firstCapturedTimestamp) {
+          visitDateTime = new Date(firstCapturedTimestamp)
+            .toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            })
+            .replace(",", " |")
+            .toLowerCase();
+        }
+      }
+    } catch (error) {
+      console.error("Error parsing timestamps:", error);
+    }
+
+    if (posterStatus !== "Ok" || structureStatus !== "Ok") {
+      const accountManagerName =
+        complianceReport.campaign?.accountManager?.firstname ||
+        "Account Manager";
+      const accountManagerEmail =
+        complianceReport.campaign?.accountManager?.email;
+
+      const aberrationDetails = `
+        Dear ${accountManagerName},
+
+        An aberration has been detected. Please review the compliance report below:
+
+        Campaign Code: ${complianceReport.campaign?.campaignID || "N/A"}
+        SITE ID: ${complianceReport.siteCode || "N/A"}
+        Brand: ${complianceReport.brand || "N/A"}
+        City: ${complianceReport.city || "N/A"}
+        Location: ${complianceReport.address || "N/A"}
+        Format: ${complianceReport.boardType || "N/A"}
+        Media Owner: ${complianceReport.mediaOwner || "N/A"}
+        Aberration: ${posterStatus} 
+        Poster Status: ${posterStatus}
+        Visit Date-Time: ${visitDateTime}
+      `;
+
+      const attachments = complianceReport.imageUrls.map((url) => ({
+        filename: url.split("/").pop(),
+        path: url,
+      }));
+
+      try {
+        await transporter.sendMail({
+          from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
+          to: accountManagerEmail,
+          subject: "OOH Compliance Aberration Alert!",
+          text: aberrationDetails,
+          attachments,
+        });
+
+        console.log("Aberration alert email sent successfully.");
+        return res.status(201).json({
+          message: "Compliance report successfully created.",
+          complianceReport,
+        });
+      } catch (emailError) {
+        console.error("Error sending aberration email:", emailError);
+      }
+    }
+
     res.status(201).json({
       message: "Compliance report successfully created.",
-      complianceReport,
+      newComplianceReport,
     });
   } catch (error) {
     console.error("Error creating compliance report:", error);
@@ -432,6 +524,7 @@ exports.updateComplianceStatus = async (req, res) => {
       console.error("Error parsing timestamps:", error);
     }
 
+    // Handle disapproval case
     if (status === "disapproved") {
       if (!disapprovalReason) {
         return res
@@ -441,7 +534,7 @@ exports.updateComplianceStatus = async (req, res) => {
 
       await prisma.complianceReport.update({
         where: { id: parseInt(id) },
-        data: { status }, // Store disapproval reason
+        data: { status },
       });
 
       if (complianceReport.siteAssignmentId) {
@@ -457,44 +550,24 @@ exports.updateComplianceStatus = async (req, res) => {
       });
     }
 
-    if (status === "approved") {
-      await prisma.complianceReport.update({
-        where: { id: parseInt(id) },
-        data: { status }, 
-      });
+    // Handle approval logic
+    const isPosterOk = complianceReport.Poster.name === "Ok";
+    const isStructureOk = complianceReport.Structure.name === "Ok";
 
-      if (complianceReport.siteAssignmentId) {
-        await prisma.siteAssignment.update({
-          where: { id: complianceReport.siteAssignmentId },
-          data: { status },
-        });
-      }
+    await prisma.complianceReport.update({
+      where: { id: parseInt(id) },
+      data: { status },
+    });
 
-      return res.status(200).json({
-        message: "Compliance report marked as approved.",
-        disapprovalReason,
+    if (complianceReport.siteAssignmentId) {
+      await prisma.siteAssignment.update({
+        where: { id: complianceReport.siteAssignmentId },
+        data: { status },
       });
     }
 
-    // Handle approval logic and email notification for aberrations
-    if (
-      status === "approved" &&
-      (complianceReport.Poster.name !== "Ok" ||
-        complianceReport.Structure.name !== "Ok")
-    ) {
-
-      await prisma.complianceReport.update({
-        where: { id: parseInt(id) },
-        data: { status }, // Update status to approved
-      });
-
-      if (complianceReport.siteAssignmentId) {
-        await prisma.siteAssignment.update({
-          where: { id: complianceReport.siteAssignmentId },
-          data: { status },
-        });
-      }
-
+    // If either Poster or Structure is NOT "Ok", send an aberration alert
+    if (status === "approved" && (!isPosterOk || !isStructureOk)) {
       const clientName =
         complianceReport.campaign?.client?.advertiser.name || "Client";
       const aberrationDetails = `
@@ -514,7 +587,7 @@ exports.updateComplianceStatus = async (req, res) => {
         Visit Date-Time: ${visitDateTime}
       `;
 
-      const attachments = complianceReport.imageUrls.map((url) => ({
+      const attachments = (complianceReport.imageUrls || []).map((url) => ({
         filename: url.split("/").pop(),
         path: url,
       }));
@@ -525,38 +598,37 @@ exports.updateComplianceStatus = async (req, res) => {
       const additionalEmails =
         complianceReport.campaign?.client?.additionalEmail;
 
-      if (!clientEmail || !accountManagerEmail) {
-        console.warn("Missing client or account manager email.");
-      }
-
       const recipients = [
         clientEmail,
         accountManagerEmail,
         additionalEmails,
       ].filter(Boolean);
 
-      try {
-        await transporter.sendMail({
-          from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
-          to: recipients,
-          subject: "OOH Compliance Aberration Alert!",
-          text: aberrationDetails,
-          attachments,
-        });
+      if (recipients.length > 0) {
+        try {
+          await transporter.sendMail({
+            from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
+            to: recipients,
+            subject: "OOH Compliance Aberration Alert!",
+            text: aberrationDetails,
+            attachments,
+          });
 
-        console.log("Aberration alert email sent successfully.");
-      } catch (emailError) {
-        console.error("Error sending email:", emailError);
+          console.log("Aberration alert email sent successfully.");
+        } catch (emailError) {
+          console.error("Error sending email:", emailError);
+        }
+      } else {
+        console.warn("No valid recipients found for aberration alert email.");
       }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Compliance report status successfully updated.",
     });
-      
   } catch (error) {
     console.error("Error updating compliance report status:", error);
-    res.status(500).json({
+    return res.status(500).json({
       error: "An error occurred while updating compliance report status.",
     });
   }
@@ -836,12 +908,31 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
   }
 };
 
-exports.updateBSVScore = async (req, res) => {
+exports.updateComplianceReport = async (req, res) => {
   const { id } = req.params;
-  const { bsv } = req.body;
+  const {
+    bsv,
+    comment,
+    structureId,
+    posterId,
+    illuminationId,
+    routeId,
+    sideId,
+  } = req.body;
 
-  if (!bsv) {
-    return res.status(400).json({ error: "BSV score is required." });
+  // Ensure at least one field is provided for an update
+  if (
+    !bsv &&
+    !comment &&
+    !structureId &&
+    !posterId &&
+    !illuminationId &&
+    !routeId &&
+    !sideId
+  ) {
+    return res
+      .status(400)
+      .json({ error: "At least one field must be provided for update." });
   }
 
   try {
@@ -854,21 +945,35 @@ exports.updateBSVScore = async (req, res) => {
       return res.status(404).json({ error: "Compliance report not found." });
     }
 
-    // Update BSV scores
+    // Prepare update data dynamically
+    const updateData = {};
+    if (bsv) updateData.bsv = bsv;
+    if (comment) updateData.comment = comment;
+    if (structureId)
+      updateData.Structure = { connect: { id: parseInt(structureId) } };
+    if (posterId) updateData.Poster = { connect: { id: parseInt(posterId) } };
+    if (illuminationId)
+      updateData.Illumination = { connect: { id: parseInt(illuminationId) } };
+    if (routeId) updateData.Route = { connect: { id: parseInt(routeId) } };
+    if (sideId) updateData.Side = { connect: { id: parseInt(sideId) } };
+
+    // Update the compliance report
     const updatedCompliance = await prisma.complianceReport.update({
       where: { id: parseInt(id) },
-      data: { bsv },
+      data: updateData,
     });
 
     res.status(200).json({
-      message: "BSV score updated successfully.",
+      message: "Compliance report updated successfully.",
       updatedCompliance,
     });
   } catch (error) {
-    console.error("Error updating BSV score:", error);
+    console.error("Error updating compliance report:", error);
     res
       .status(500)
-      .json({ error: "An error occurred while updating BSV score." });
+      .json({
+        error: "An error occurred while updating the compliance report.",
+      });
   }
 };
 
