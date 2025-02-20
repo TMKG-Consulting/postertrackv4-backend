@@ -34,7 +34,7 @@ const parseSiteList = (filePath) => {
 
     if (!location) continue;
 
-    const generatedCode = code || `SITE-${i.toString().padStart(4, "0")}`;
+    const generatedCode = code || `${i.toString().padStart(4, "0")}`;
 
     siteData.push({
       code: generatedCode,
