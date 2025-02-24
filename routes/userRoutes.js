@@ -24,7 +24,7 @@ router.get(
 router.get("/user/detail", authToken, userController.getUser);
 
 router.put(
-  "/api/user/:id",
+  "/api/users/:id",
   authToken,
   upload.single("profilePicture"),
   userController.updateUser
