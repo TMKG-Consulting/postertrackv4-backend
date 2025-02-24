@@ -112,22 +112,34 @@ exports.getBrands = async (req, res) => {
 
 //Get All Brands
 exports.getAllBrands = async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 10, search = "" } = req.query;
 
   try {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Fetch paginated data with relationships
+    // Build the search filter
+    const where = search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } }, // Search by brand name
+            { advertiser: { name: { contains: search, mode: "insensitive" } } }, // Search by advertiser name
+            { category: { name: { contains: search, mode: "insensitive" } } }, // Search by category name
+          ],
+        }
+      : {};
+
+    // Fetch paginated data with search filter and relationships
     const [brands, total] = await Promise.all([
       prisma.brand.findMany({
         skip,
         take: parseInt(limit),
+        where,
         include: {
           advertiser: true, // Populate Advertiser data
           category: true, // Populate Category data
         },
       }),
-      prisma.brand.count(), // Only count the total number of brands
+      prisma.brand.count({ where }), // Count total number of brands matching the search
     ]);
 
     const totalPages = Math.ceil(total / limit);

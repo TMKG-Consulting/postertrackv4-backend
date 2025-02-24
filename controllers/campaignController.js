@@ -379,7 +379,7 @@ exports.viewCampaign = async (req, res) => {
 exports.fetchCampaigns = async (req, res) => {
   try {
     const { role, id: userId } = req.user;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, search = "" } = req.query;
 
     // Define role-based filters
     let whereClause = {};
@@ -388,14 +388,25 @@ exports.fetchCampaigns = async (req, res) => {
     } else if (role === "ACCOUNT_MANAGER") {
       whereClause = { accountManagerId: userId }; // Filter for ACCOUNT_MANAGER
     } else {
-      // Unauthorized access
       return res.status(403).json({
         error:
           "Permission Denied: You are not authorized to access this resource.",
       });
     }
 
-    // Use the updated paginate function
+    // Apply search filter on advertiser name
+    if (search) {
+      whereClause.client = {
+        advertiser: {
+          name: {
+            contains: search,
+            mode: "insensitive",
+          },
+        },
+      };
+    }
+
+    // Fetch paginated campaigns
     const {
       data: campaigns,
       total,
@@ -410,10 +421,8 @@ exports.fetchCampaigns = async (req, res) => {
           client: {
             select: {
               id: true,
-              firstname: true,
-              lastname: true,
               email: true,
-              advertiser: true,
+              advertiser: true, // Ensure advertiser relation is included
             },
           },
           accountManager: {
@@ -429,14 +438,13 @@ exports.fetchCampaigns = async (req, res) => {
               id: true,
               siteCode: true,
               fieldAuditorId: true,
-              status: true, // Include the status field
+              status: true,
             },
           },
         },
       }
     );
 
-    // Return the response with site assignments
     res.status(200).json({
       data: campaigns,
       total,
