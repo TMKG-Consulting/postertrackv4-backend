@@ -303,6 +303,7 @@ exports.createUser = async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase(); // Convert email to lowercase
+    let normalizedAdditionalEmails = []; // Ensure this variable is always declared
 
     // Check for existing user (case insensitive)
     const existingUser = await prisma.user.findUnique({
@@ -363,7 +364,7 @@ exports.createUser = async (req, res) => {
       }
 
       // Convert additional emails to lowercase
-      const normalizedAdditionalEmails = additionalEmail.map((email) =>
+      normalizedAdditionalEmails = additionalEmail.map((email) =>
         email.toLowerCase()
       );
 
@@ -437,9 +438,7 @@ exports.createUser = async (req, res) => {
             : undefined,
         advertiserId: role === "CLIENT_AGENCY_USER" ? name : undefined,
         additionalEmail:
-          role === "CLIENT_AGENCY_USER"
-            ? normalizedAdditionalEmails
-            : undefined,
+          role === "CLIENT_AGENCY_USER" ? normalizedAdditionalEmails : [],
         industryId: role === "CLIENT_AGENCY_USER" ? industryId : undefined,
       },
     });
@@ -528,7 +527,7 @@ exports.fetchAllUsers = async (req, res) => {
 
 exports.getUser = async (req, res) => {
   try {
-    const userId = req.user.id; 
+    const userId = req.user.id;
 
     // Fetch the user from the database with statesCovered if they are a Field Auditor
     const user = await prisma.user.findUnique({
