@@ -957,10 +957,17 @@ exports.updateComplianceReport = async (req, res) => {
     if (routeId) updateData.Route = { connect: { id: parseInt(routeId) } };
     if (sideId) updateData.Side = { connect: { id: parseInt(sideId) } };
 
-    // Update the compliance report
+    // Update the compliance report and include all related fields
     const updatedCompliance = await prisma.complianceReport.update({
       where: { id: parseInt(id) },
       data: updateData,
+      include: {
+        Structure: true,
+        Poster: true,
+        Illumination: true,
+        Route: true,
+        Side: true,
+      },
     });
 
     res.status(200).json({
@@ -969,11 +976,9 @@ exports.updateComplianceReport = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating compliance report:", error);
-    res
-      .status(500)
-      .json({
-        error: "An error occurred while updating the compliance report.",
-      });
+    res.status(500).json({
+      error: "An error occurred while updating the compliance report.",
+    });
   }
 };
 
