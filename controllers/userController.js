@@ -635,25 +635,36 @@ exports.updateUser = async (req, res) => {
         : userToUpdate.status; // Fallback to existing value if invalid
 
     // Role-specific validations
+    let parsedStates = [];
+
     if (userToUpdate.role === "FIELD_AUDITOR") {
-      if (
-        !firstname ||
-        !lastname ||
-        !Array.isArray(statesCovered) ||
-        statesCovered.length === 0
-      ) {
+      if (!firstname || !lastname || !statesCovered) {
         return res.status(400).json({
           error:
-            "Firstname, lastname, and statesCovered (array of state IDs) are required for Field Auditor role.",
+            "Firstname, lastname, and statesCovered are required for Field Auditor role.",
         });
+      }
+
+      if (typeof statesCovered === "string") {
+        // If it's a JSON string (e.g., "[33, 45, 56]"), parse it
+        try {
+          parsedStates = JSON.parse(statesCovered);
+          if (!Array.isArray(parsedStates)) throw new Error();
+        } catch (error) {
+          parsedStates = [Number(statesCovered)]; // Handle single number as string
+        }
+      } else if (Array.isArray(statesCovered)) {
+        parsedStates = statesCovered.map(Number); // Convert all elements to numbers
+      } else {
+        return res.status(400).json({ error: "Invalid statesCovered format." });
       }
 
       // Validate state IDs
       const validStates = await prisma.state.findMany({
-        where: { id: { in: statesCovered } },
+        where: { id: { in: parsedStates } },
       });
 
-      if (validStates.length !== statesCovered.length) {
+      if (validStates.length !== parsedStates.length) {
         return res.status(400).json({
           error: "Some provided state IDs are invalid.",
         });
@@ -710,7 +721,9 @@ exports.updateUser = async (req, res) => {
         profilePicture: publicUrl,
         statesCovered:
           userToUpdate.role === "FIELD_AUDITOR"
-            ? { set: statesCovered.map((id) => ({ id })) }
+            ? {
+                connect: parsedStates.map((stateId) => ({ id: stateId })),
+              }
             : undefined,
         additionalEmail:
           userToUpdate.role === "CLIENT_AGENCY_USER"
