@@ -6,7 +6,7 @@ const brandController = require("../controllers/brand");
 const { authToken, authRole } = require("../middleware/auth");
 
 router.post(
-  "/api/brands",
+  "/api/brand",
   authToken,
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   upload.single("logo"),

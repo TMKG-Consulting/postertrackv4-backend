@@ -51,6 +51,4 @@ router.get(
   userController.getClients
 );
 
-router.get("/users/search", userController.searchUsers);
-
 module.exports = router;

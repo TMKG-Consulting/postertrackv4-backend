@@ -8,23 +8,30 @@ exports.createBrand = async (req, res) => {
   try {
     const { name, advertiserId, categoryId } = req.body;
 
-    console.log("Request Body:", req.body);
-    console.log("Request File:", req.file);
+    // Convert IDs to numbers (to avoid NaN issues)
+    const parsedAdvertiserId = Number(advertiserId);
+    const parsedCategoryId = Number(categoryId);
 
+    // Check for missing fields
+    const missingFields = [];
+    if (!name) missingFields.push("Name");
+    if (isNaN(parsedAdvertiserId)) missingFields.push("Advertiser ID");
+    if (isNaN(parsedCategoryId)) missingFields.push("Category ID");
 
-    // Validate input fields
-    if (!name || !advertiserId || !categoryId) {
-      return res
-        .status(400)
-        .json({ error: "Name, Advertiser ID, and Category ID are required." });
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        error: `${missingFields.join(", ")} ${
+          missingFields.length > 1 ? "are" : "is"
+        } required.`,
+      });
     }
 
-    // Check if brand already exists for the given advertiser and category
+    // Check if brand already exists
     const existingBrand = await prisma.brand.findFirst({
       where: {
         name: name.trim(),
-        advertiserId: parseInt(advertiserId),
-        categoryId: parseInt(categoryId),
+        advertiserId: parsedAdvertiserId,
+        categoryId: parsedCategoryId,
       },
     });
 
@@ -45,8 +52,8 @@ exports.createBrand = async (req, res) => {
     const brand = await prisma.brand.create({
       data: {
         name: name.trim(),
-        advertiserId: parseInt(advertiserId),
-        categoryId: parseInt(categoryId),
+        advertiserId: parsedAdvertiserId,
+        categoryId: parsedCategoryId,
         logo: logoUrl,
       },
     });
@@ -103,7 +110,7 @@ exports.getBrands = async (req, res) => {
   }
 };
 
-//Get All Brands for an Advertiser
+//Get All Brands
 exports.getAllBrands = async (req, res) => {
   const { page = 1, limit = 10 } = req.query;
 

@@ -6,7 +6,7 @@ const path = require("path");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { paginate } = require("../Helpers/paginate");
-const {transporter} = require("../Helpers/transporter")
+const { transporter } = require("../Helpers/transporter");
 
 // Create a Super Admin
 exports.createSuperAdmin = async (req, res) => {
@@ -489,16 +489,27 @@ exports.updateUser = async (req, res) => {
 
 //Get all account managers
 exports.getAccountManagers = async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 10, search = "" } = req.query;
 
   try {
+    const where = {
+      OR: [{ role: "ACCOUNT_MANAGER" }, { role: "CHIEF_ACCOUNT_MANAGER" }],
+      ...(search
+        ? {
+            OR: [
+              { firstname: { contains: search, mode: "insensitive" } },
+              { lastname: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+
     const { data, total, totalPages } = await paginate(
       prisma.user,
       parseInt(page),
       parseInt(limit),
-      {
-        OR: [{ role: "ACCOUNT_MANAGER" }, { role: "CHIEF_ACCOUNT_MANAGER" }],
-      } // Filter by both roles
+      where
     );
 
     res.status(200).json({
@@ -515,14 +526,27 @@ exports.getAccountManagers = async (req, res) => {
 
 //Get all field auditors
 exports.getFieldAuditors = async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 10, search = "" } = req.query;
 
   try {
+    const where = {
+      role: "FIELD_AUDITOR",
+      ...(search
+        ? {
+            OR: [
+              { firstname: { contains: search, mode: "insensitive" } },
+              { lastname: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+
     const { data, total, totalPages } = await paginate(
       prisma.user,
       parseInt(page),
       parseInt(limit),
-      { role: "FIELD_AUDITOR" }, // Filter by role
+      where,
       { statesCovered: true }
     );
 
@@ -540,20 +564,31 @@ exports.getFieldAuditors = async (req, res) => {
 
 //Get all clients
 exports.getClients = async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 10, search = "" } = req.query;
 
   try {
+    const where = {
+      role: "CLIENT_AGENCY_USER",
+      ...(search
+        ? {
+            advertiser: {
+              is: {
+                name: {
+                  contains: search,
+                  mode: "insensitive",
+                },
+              },
+            },
+          }
+        : {}),
+    };
+
     const { data, total, totalPages } = await paginate(
       prisma.user,
       parseInt(page),
       parseInt(limit),
-      {
-        role: "CLIENT_AGENCY_USER", // Filter by role
-      },
-      {
-        advertiser: true, // Include Advertiser data
-        industry: true, // Include Industry data
-      }
+      where,
+      { advertiser: true, industry: true }
     );
 
     res.status(200).json({
@@ -565,39 +600,5 @@ exports.getClients = async (req, res) => {
   } catch (error) {
     console.error("Error fetching clients:", error);
     res.status(500).json({ error: "Error fetching clients." });
-  }
-};
-
-exports.searchUsers = async (req, res) => {
-  const { query, status } = req.query; // Extract query and status from request parameters
-
-  try {
-    // Build filter conditions
-    const conditions = {};
-
-    // Add search query condition (for names, email, or phone)
-    if (query) {
-      conditions.OR = [
-        { firstname: { contains: query, mode: "insensitive" } },
-        { lastname: { contains: query, mode: "insensitive" } },
-        { email: { contains: query, mode: "insensitive" } },
-        { phone: { contains: query, mode: "insensitive" } },
-      ];
-    }
-
-    // Add active status filter if provided
-    if (status) {
-      conditions.status = status === "true"; // Convert string to boolean
-    }
-
-    // Fetch filtered users
-    const users = await prisma.user.findMany({
-      where: conditions,
-    });
-
-    res.status(200).json(users);
-  } catch (error) {
-    console.error("Error searching users:", error);
-    res.status(500).json({ error: "Failed to search users." });
   }
 };

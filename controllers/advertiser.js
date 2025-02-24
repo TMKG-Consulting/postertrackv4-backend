@@ -26,13 +26,23 @@ exports.createAdvertiser = async (req, res) => {
 
 //Get All Advertisers
 exports.getAdvertisers = async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 10, search = "" } = req.query;
 
   try {
+    const where = search
+      ? {
+          name: {
+            contains: search,
+            mode: "insensitive",
+          },
+        }
+      : {}; // Ensure `where` is an empty object if no search term
+
     const { data, total, totalPages } = await paginate(
       prisma.advertiser,
       parseInt(page),
-      parseInt(limit)
+      parseInt(limit),
+      where
     );
 
     res.status(200).json({

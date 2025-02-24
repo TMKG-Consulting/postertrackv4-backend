@@ -9,6 +9,7 @@ router.post(
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   advertiserController.createAdvertiser
 );
+
 router.get(
   "/api/advertisers",
   authToken,
