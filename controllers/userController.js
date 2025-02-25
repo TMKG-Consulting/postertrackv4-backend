@@ -722,7 +722,7 @@ exports.updateUser = async (req, res) => {
         statesCovered:
           userToUpdate.role === "FIELD_AUDITOR"
             ? {
-                connect: parsedStates.map((stateId) => ({ id: stateId })),
+                set: parsedStates.map((stateId) => ({ id: stateId })), // REPLACING existing states
               }
             : undefined,
         additionalEmail:
@@ -734,6 +734,9 @@ exports.updateUser = async (req, res) => {
             ? parseInt(industryId)
             : undefined,
         status: booleanStatus,
+      },
+      include: {
+        statesCovered: true,
       },
     });
 
