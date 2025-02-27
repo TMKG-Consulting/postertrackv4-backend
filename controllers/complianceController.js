@@ -231,20 +231,20 @@ exports.complianceUpload = async (req, res) => {
         complianceReport.campaign?.accountManager?.email;
 
       const aberrationDetails = `
-        Dear ${accountManagerName},
-
-        An aberration has been detected. Please review the compliance report below:
-
-        Campaign Code: ${complianceReport.campaign?.campaignID || "N/A"}
-        SITE ID: ${complianceReport.siteCode || "N/A"}
-        Brand: ${complianceReport.brand || "N/A"}
-        City: ${complianceReport.city || "N/A"}
-        Location: ${complianceReport.address || "N/A"}
-        Format: ${complianceReport.boardType || "N/A"}
-        Media Owner: ${complianceReport.mediaOwner || "N/A"}
-        Aberration: ${posterStatus} 
-        Poster Status: ${posterStatus}
-        Visit Date-Time: ${visitDateTime}
+        <div style="text-align: left;">
+          <p>Dear ${accountManagerName},</p>
+          <p>Find below details of aberration on your OOH display as captured by our field force:</p>
+          <p><b>Campaign Code:</b> ${complianceReport.campaign?.campaignID || "N/A"}</p>
+          <p><b>SITE ID:</b> ${complianceReport.siteCode || "N/A"}</p>
+          <p><b>Brand:</b> ${complianceReport.brand || "N/A"}</p>
+          <p><b>City:</b> ${complianceReport.city || "N/A"}</p>
+          <p><b>Location:</b> ${complianceReport.address || "N/A"}</p>
+          <p><b>Format:</b> ${complianceReport.boardType || "N/A"}</p>
+          <p><b>Media Owner:</b> ${complianceReport.mediaOwner || "N/A"}</p>
+          <p><b>Aberration:</b> ${posterStatus} </p>
+          <p><b>Poster Status:</b> ${posterStatus} </p>
+          <p><b>Visit Date-Time:</b> ${visitDateTime}</p>
+        </div>
       `;
 
       const attachments = complianceReport.imageUrls.map((url) => ({
@@ -571,20 +571,22 @@ exports.updateComplianceStatus = async (req, res) => {
       const clientName =
         complianceReport.campaign?.client?.advertiser.name || "Client";
       const aberrationDetails = `
-        Dear ${clientName},
-
-        Find below details of aberration on your OOH display as captured by our field force:
-
-        Campaign Code: ${complianceReport.campaign?.campaignID || "N/A"}
-        SITE ID: ${complianceReport.siteCode || "N/A"}
-        Brand: ${complianceReport.brand || "N/A"}
-        City: ${complianceReport.city || "N/A"}
-        Location: ${complianceReport.address || "N/A"}
-        Format: ${complianceReport.boardType || "N/A"}
-        Media Owner: ${complianceReport.mediaOwner || "N/A"}
-        Aberration: ${complianceReport.Poster.name || "N/A"}
-        Poster Status: ${complianceReport.Poster.name || "N/A"}
-        Visit Date-Time: ${visitDateTime}
+        <div style="text-align: left;">
+          <p>Dear ${clientName},</p>
+          <p>Find below details of aberration on your OOH display as captured by our field force:</p>
+          <p><b>Campaign Code:</b> ${
+            complianceReport.campaign?.campaignID || "N/A"
+          }</p>
+          <p><b>SITE ID:</b> ${complianceReport.siteCode || "N/A"}</p>
+          <p><b>Brand:</b> ${complianceReport.brand || "N/A"}</p>
+          <p><b>City:</b> ${complianceReport.city || "N/A"}</p>
+          <p><b>Location:</b> ${complianceReport.address || "N/A"}</p>
+          <p><b>Format:</b> ${complianceReport.boardType || "N/A"}</p>
+          <p><b>Media Owner:</b> ${complianceReport.mediaOwner || "N/A"}</p>
+          <p><b>Aberration:</b> ${complianceReport.Poster.name || "N/A"}</p>
+          <p><b>Poster Status:</b> ${complianceReport.Poster.name || "N/A"}</p>
+          <p><b>Visit Date-Time:</b> ${visitDateTime}</p>
+        </div>
       `;
 
       const attachments = (complianceReport.imageUrls || []).map((url) => ({
@@ -593,28 +595,30 @@ exports.updateComplianceStatus = async (req, res) => {
       }));
 
       const clientEmail = complianceReport.campaign?.client?.email;
-      const accountManagerEmail =
-        complianceReport.campaign?.accountManager?.email;
       const additionalEmails =
         complianceReport.campaign?.client?.additionalEmail;
 
-      const recipients = [
-        clientEmail,
-        accountManagerEmail,
-        additionalEmails,
-      ].filter(Boolean);
+      // Convert comma-separated string to an array if needed
+      if (typeof additionalEmails === "string") {
+        additionalEmails = additionalEmails
+          .split(",")
+          .map((email) => email.trim());
+      }
+
+      const recipients = [clientEmail, ...additionalEmails].filter(Boolean);
 
       if (recipients.length > 0) {
         try {
-          await transporter.sendMail({
-            from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
-            to: recipients,
-            subject: "OOH Compliance Aberration Alert!",
-            text: aberrationDetails,
-            attachments,
-          });
-
-          console.log("Aberration alert email sent successfully.");
+          for (const recipient of recipients) {
+            await transporter.sendMail({
+              from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
+              to: recipient,
+              subject: "OOH Compliance Aberration Alert!",
+              html: aberrationDetails,
+              attachments,
+            });
+          }
+          console.log("Aberration alert emails sent successfully.");
         } catch (emailError) {
           console.error("Error sending email:", emailError);
         }
