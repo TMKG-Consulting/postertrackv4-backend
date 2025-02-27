@@ -233,8 +233,10 @@ exports.complianceUpload = async (req, res) => {
       const aberrationDetails = `
         <div style="text-align: left;">
           <p>Dear ${accountManagerName},</p>
-          <p>Find below details of aberration on your OOH display as captured by our field force:</p>
-          <p><b>Campaign Code:</b> ${complianceReport.campaign?.campaignID || "N/A"}</p>
+          <p>An aberration has been detected. Please review the compliance report below:</p>
+          <p><b>Campaign Code:</b> ${
+            complianceReport.campaign?.campaignID || "N/A"
+          }</p>
           <p><b>SITE ID:</b> ${complianceReport.siteCode || "N/A"}</p>
           <p><b>Brand:</b> ${complianceReport.brand || "N/A"}</p>
           <p><b>City:</b> ${complianceReport.city || "N/A"}</p>
@@ -257,7 +259,7 @@ exports.complianceUpload = async (req, res) => {
           from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
           to: accountManagerEmail,
           subject: "OOH Compliance Aberration Alert!",
-          text: aberrationDetails,
+          html: aberrationDetails,
           attachments,
         });
 
@@ -924,7 +926,6 @@ exports.updateComplianceReport = async (req, res) => {
     sideId,
   } = req.body;
 
-  // Ensure at least one field is provided for an update
   if (
     !bsv &&
     !comment &&
@@ -940,16 +941,30 @@ exports.updateComplianceReport = async (req, res) => {
   }
 
   try {
-    // Check if compliance report exists
     const complianceReport = await prisma.complianceReport.findUnique({
       where: { id: parseInt(id) },
+      include: {
+        Structure: true,
+        Poster: true,
+        campaign: {
+          select: {
+            client: {
+              select: {
+                email: true,
+                additionalEmail: true,
+                advertiser: { select: { name: true } },
+              },
+            },
+            campaignID: true,
+          },
+        },
+      },
     });
 
     if (!complianceReport) {
       return res.status(404).json({ error: "Compliance report not found." });
     }
 
-    // Prepare update data dynamically
     const updateData = {};
     if (bsv) updateData.bsv = bsv;
     if (comment) updateData.comment = comment;
@@ -961,7 +976,6 @@ exports.updateComplianceReport = async (req, res) => {
     if (routeId) updateData.Route = { connect: { id: parseInt(routeId) } };
     if (sideId) updateData.Side = { connect: { id: parseInt(sideId) } };
 
-    // Update the compliance report and include all related fields
     const updatedCompliance = await prisma.complianceReport.update({
       where: { id: parseInt(id) },
       data: updateData,
@@ -973,6 +987,98 @@ exports.updateComplianceReport = async (req, res) => {
         Side: true,
       },
     });
+
+    // Get new status after update
+    const newPosterStatus = updatedCompliance.Poster?.name || "N/A";
+    const newStructureStatus = updatedCompliance.Structure?.name || "N/A";
+
+    // Check if poster or structure is not "Ok" after update
+    const isPosterChanged = newPosterStatus !== "Ok";
+    const isStructureChanged = newStructureStatus !== "Ok";
+
+    if (isPosterChanged || isStructureChanged) {
+      const clientEmail = complianceReport.campaign?.client?.email;
+      let additionalEmails = complianceReport.campaign?.client?.additionalEmail;
+      const clientName =
+        complianceReport.campaign?.client?.advertiser?.name || "Client";
+
+      if (typeof additionalEmails === "string") {
+        additionalEmails = additionalEmails
+          .split(",")
+          .map((email) => email.trim());
+      }
+
+      const recipients = [clientEmail, ...additionalEmails].filter(Boolean);
+
+      let visitDateTime = "N/A";
+      try {
+        const timestamps = JSON.parse(
+          complianceReport.capturedTimestamps || "[]"
+        );
+        if (timestamps.length > 0) {
+          visitDateTime = new Date(timestamps[0]?.timestamp)
+            .toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            })
+            .replace(",", " |")
+            .toLowerCase();
+        }
+      } catch (error) {
+        console.error("Error parsing timestamps:", error);
+      }
+
+      const aberrationDetails = `
+        <div style="text-align: left; font-family: Arial, sans-serif;">
+          <p>Dear ${clientName},</p>
+          <p>Find below details of aberration on your OOH display as captured by our field force:</p>
+          <p><b>Campaign Code:</b> ${
+            complianceReport.campaign?.campaignID || "N/A"
+          }</p>
+          <p><b>SITE ID:</b> ${complianceReport.siteCode || "N/A"}</p>
+          <p><b>Brand:</b> ${complianceReport.brand || "N/A"}</p>
+          <p><b>City:</b> ${complianceReport.city || "N/A"}</p>
+          <p><b>Location:</b> ${complianceReport.address || "N/A"}</p>
+          <p><b>Format:</b> ${complianceReport.boardType || "N/A"}</p>
+          <p><b>Media Owner:</b> ${complianceReport.mediaOwner || "N/A"}</p>
+          <p><b>Aberration:</b> ${newPosterStatus}</p>
+          <p><b>Poster Status:</b> ${newPosterStatus}</p>
+          <p><b>Structure Status:</b> ${newStructureStatus}</p>
+          <p><b>Visit Date-Time:</b> ${visitDateTime}</p>
+        </div>
+      `;
+
+      const attachments = (complianceReport.imageUrls || []).map((url) => ({
+        filename: url.split("/").pop(),
+        path: url,
+      }));
+
+      if (recipients.length > 0) {
+        try {
+          console.log("Sending email...");
+          for (const recipient of recipients) {
+            await transporter.sendMail({
+              from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
+              to: recipient,
+              subject: "OOH Compliance Aberration Alert!",
+              html: aberrationDetails,
+              attachments,
+            });
+            console.log(`Email sent successfully to: ${recipient}`);
+          }
+        } catch (emailError) {
+          console.error("Error sending email:", emailError);
+        }
+      } else {
+        console.warn("No valid recipients found for aberration alert email.");
+      }
+    } else {
+      console.log("No status change detected. Email will not be sent.");
+    }
 
     res.status(200).json({
       message: "Compliance report updated successfully.",
