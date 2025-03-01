@@ -179,6 +179,46 @@ model Side {
   ComplianceReport ComplianceReport[]
 }
 
+model VisibilityDistance{
+  id               Int                @id @default(autoincrement())
+  number           Int
+}
+
+model TrafficDensity{
+  id               Int                @id @default(autoincrement())
+  number           Int
+}
+
+model TrafficSpeed{
+  id               Int                @id @default(autoincrement())
+  number           Int
+}
+
+model AngleVision{
+  id               Int                @id @default(autoincrement())
+  number           Int
+}
+
+model ClutterBillboard{
+  id               Int                @id @default(autoincrement())
+  number           Int
+}
+
+model ClutterFormat{
+  id               Int                @id @default(autoincrement())
+  number           Int
+}
+
+model ProximityCompetition{
+  id               Int                @id @default(autoincrement())
+  number           Int
+}
+
+model PedestrianTraffic{
+  id               Int                @id @default(autoincrement())
+  number           Int
+}
+
 enum Role {
   SUPER_ADMIN
   CHIEF_ACCOUNT_MANAGER
