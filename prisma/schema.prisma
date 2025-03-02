@@ -107,6 +107,15 @@ model ComplianceReport {
   siteAssignment   SiteAssignment? @relation(fields: [siteAssignmentId], references: [id], onDelete: Cascade)
   Structure        Structure      @relation(fields: [structureId], references: [id])
   FieldAuditor     User           @relation("FieldAuditor", fields: [uploadedBy], references: [id])
+  visibilityDistance  Int     @default(0)
+  trafficDensity      Int     @default(0)
+  trafficSpeed        Int     @default(0)
+  angleVision         Int     @default(0)
+  clutterBillboard    Int     @default(0)
+  clutterFormat       Int     @default(0)
+  proximityCompetition  Int     @default(0)
+  pedestrianTraffic   Int     @default(0)
+
 
   @@unique([siteCode, campaignId])
 }

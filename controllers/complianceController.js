@@ -924,6 +924,14 @@ exports.updateComplianceReport = async (req, res) => {
     illuminationId,
     routeId,
     sideId,
+    visibilityDistance,
+    trafficDensity,
+    trafficSpeed,
+    angleVision,
+    clutterBillboard,
+    clutterFormat,
+    proximityCompetition,
+    pedestrianTraffic
   } = req.body;
 
   if (
@@ -975,6 +983,14 @@ exports.updateComplianceReport = async (req, res) => {
       updateData.Illumination = { connect: { id: parseInt(illuminationId) } };
     if (routeId) updateData.Route = { connect: { id: parseInt(routeId) } };
     if (sideId) updateData.Side = { connect: { id: parseInt(sideId) } };
+    if (visibilityDistance) updateData.visibilityDistance = visibilityDistance;
+    if (trafficDensity) updateData.trafficDensity = trafficDensity;
+    if (trafficSpeed) updateData.trafficSpeed = trafficSpeed;
+    if (angleVision) updateData.angleVision = angleVision;
+    if (clutterBillboard) updateData.clutterBillboard = clutterBillboard;
+    if (clutterFormat) updateData.clutterFormat = clutterFormat;
+    if (proximityCompetition) updateData.proximityCompetition = proximityCompetition;
+    if (pedestrianTraffic) updateData.pedestrianTraffic = pedestrianTraffic;
 
     const updatedCompliance = await prisma.complianceReport.update({
       where: { id: parseInt(id) },

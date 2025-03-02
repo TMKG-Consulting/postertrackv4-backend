@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "ComplianceReport" ADD COLUMN     "angleVision" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "clutterBillboard" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "clutterFormat" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "pedestrianTraffic" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "proximityCompetition" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "trafficDensity" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "trafficSpeed" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "visibilityDistance" INTEGER NOT NULL DEFAULT 0;
