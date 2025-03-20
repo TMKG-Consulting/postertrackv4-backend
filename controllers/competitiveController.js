@@ -6,70 +6,75 @@ const { applyWatermarks } = require("../Helpers/watermark");
 
 exports.competitiveUpload = async (req, res) => {
   try {
-    let { advertiser, brand, boardType, category, region, state, city } =
+    let { brand, advertiser, boardType, category, region, state, city } =
       req.body;
-
     const fieldAuditorId = req.user?.id;
 
     // Ensure category is an array (even if a single category is provided)
     let categoryIds = Array.isArray(category) ? category : [category];
     categoryIds = categoryIds.map((id) => parseInt(id));
 
-    // Find or create advertiser
-    let advertiserRecord = await prisma.advertiser.findUnique({
-      where: { name: advertiser },
-      include: { advertiserCategories: true },
+    // Check if brand exists and fetch its advertiser and category
+    let brandRecord = await prisma.brand.findFirst({
+      where: { name: brand },
+      include: {
+        advertiser: true,
+        category: true,
+      },
     });
 
-    if (!advertiserRecord) {
-      advertiserRecord = await prisma.advertiser.create({
-        data: {
-          name: advertiser,
-          advertiserCategories: {
-            create: categoryIds.map((categoryId) => ({
-              category: { connect: { id: categoryId } },
-            })),
-          },
-        },
-      });
+    if (brandRecord) {
+      // If brand exists, use its advertiser and category
+      advertiser = brandRecord.advertiser.name;
+      categoryIds = [brandRecord.categoryId]; // Use the brand's existing category
     } else {
-      // Find existing linked categories
-      const existingCategoryIds = advertiserRecord.advertiserCategories.map(
-        (cat) => cat.categoryId
-      );
+      // If brand does not exist, ensure advertiser is created
+      let advertiserRecord = await prisma.advertiser.findUnique({
+        where: { name: advertiser },
+        include: { advertiserCategories: true },
+      });
 
-      // Find categories that need to be added
-      const newCategoryIds = categoryIds.filter(
-        (categoryId) => !existingCategoryIds.includes(categoryId)
-      );
-
-      // Connect only new categories
-      if (newCategoryIds.length > 0) {
-        await prisma.advertiser.update({
-          where: { id: advertiserRecord.id },
+      if (!advertiserRecord) {
+        // Create new advertiser and assign categories
+        advertiserRecord = await prisma.advertiser.create({
           data: {
+            name: advertiser,
             advertiserCategories: {
-              create: newCategoryIds.map((categoryId) => ({
+              create: categoryIds.map((categoryId) => ({
                 category: { connect: { id: categoryId } },
               })),
             },
           },
         });
+      } else {
+        // Ensure all selected categories are assigned to the advertiser
+        const existingCategoryIds = advertiserRecord.advertiserCategories.map(
+          (cat) => cat.categoryId
+        );
+        const newCategoryIds = categoryIds.filter(
+          (categoryId) => !existingCategoryIds.includes(categoryId)
+        );
+
+        if (newCategoryIds.length > 0) {
+          await prisma.advertiser.update({
+            where: { id: advertiserRecord.id },
+            data: {
+              advertiserCategories: {
+                create: newCategoryIds.map((categoryId) => ({
+                  category: { connect: { id: categoryId } },
+                })),
+              },
+            },
+          });
+        }
       }
-    }
 
-    // Find or create brand
-    let brandRecord = await prisma.brand.findFirst({
-      where: { name: brand },
-      include: { category: true },
-    });
-
-    if (!brandRecord) {
+      // Create the new brand and link it to the advertiser
       brandRecord = await prisma.brand.create({
         data: {
           name: brand,
           advertiserId: advertiserRecord.id,
-          categoryId: categoryIds[0], // Use the first category for the brand
+          categoryId: categoryIds[0], // Use the first category
         },
       });
     }
@@ -78,6 +83,7 @@ exports.competitiveUpload = async (req, res) => {
     let capturedTimestamps = [];
     let geolocations = [];
 
+    // Process and Upload Images
     if (req.files?.length > 0) {
       for (const file of req.files) {
         try {
@@ -94,16 +100,20 @@ exports.competitiveUpload = async (req, res) => {
           const latitude = exifData.tags?.GPSLatitude;
           const longitude = exifData.tags?.GPSLongitude;
           if (!latitude || !longitude) {
-            return res.status(400).json({
-              error: `Image '${file.originalname}' must contain GPS geotag information.`,
-            });
+            return res
+              .status(400)
+              .json({
+                error: `Image '${file.originalname}' must contain GPS geotag information.`,
+              });
           }
 
           const captureDate = exifData.tags?.DateTimeOriginal;
           if (!captureDate) {
-            return res.status(400).json({
-              error: `Image '${file.originalname}' must contain capture date and timestamp.`,
-            });
+            return res
+              .status(400)
+              .json({
+                error: `Image '${file.originalname}' must contain capture date and timestamp.`,
+              });
           }
 
           const timestamp = new Date(captureDate * 1000).toISOString();
@@ -115,7 +125,6 @@ exports.competitiveUpload = async (req, res) => {
             captureDate,
             city
           );
-
           const uploadedUrl = await uploadGCS({
             buffer: watermarkedBuffer,
             filename: file.originalname,
@@ -123,23 +132,26 @@ exports.competitiveUpload = async (req, res) => {
 
           images.push(uploadedUrl);
         } catch (error) {
-          return res.status(500).json({
-            error: "Error processing or uploading images.",
-            details: error.message,
-          });
+          return res
+            .status(500)
+            .json({
+              error: "Error processing or uploading images.",
+              details: error.message,
+            });
         }
       }
     } else {
       return res.status(400).json({ error: "At least one image is required." });
     }
 
+    // Create Competitive Report Entry
     const newEntry = await prisma.competitiveReport.create({
       data: {
         FieldAuditor: { connect: { id: parseInt(fieldAuditorId) } },
         images,
         geolocations: JSON.stringify(geolocations),
         capturedTimestamps: JSON.stringify(capturedTimestamps),
-        advertiser: { connect: { id: parseInt(advertiserRecord.id) } },
+        advertiser: { connect: { id: parseInt(brandRecord.advertiserId) } },
         brand: { connect: { id: parseInt(brandRecord.id) } },
         boardType: { connect: { id: parseInt(boardType) } },
         category: { connect: { id: parseInt(categoryIds[0]) } },
@@ -244,7 +256,7 @@ exports.getCompetitiveMapData = async (req, res) => {
 
     const advertiserIdInt = parseInt(id);
 
-    // ✅ Step 1: Get Advertiser's Name
+    // Step 1: Get Advertiser's Name
     const advertiser = await prisma.advertiser.findUnique({
       where: { id: advertiserIdInt },
       select: {
@@ -265,7 +277,7 @@ exports.getCompetitiveMapData = async (req, res) => {
     console.log("Advertiser Name:", advertiserName);
     console.log("Category IDs:", categoryIds);
 
-    // ✅ Step 2: Find Compliance Reports for the Advertiser
+    // Step 2: Find Compliance Reports for the Advertiser
     const complianceReports = await prisma.complianceReport.findMany({
       where: { advertiser: advertiserName }, // Now checking the correct field
     });
@@ -273,7 +285,7 @@ exports.getCompetitiveMapData = async (req, res) => {
     const advertiserHasComplianceReport = complianceReports.length > 0;
     console.log("Has Compliance Report:", advertiserHasComplianceReport);
 
-    // ✅ Step 3: Find Competitors
+    // Step 3: Find Competitors
     const competitors = await prisma.advertiser.findMany({
       where: {
         advertiserCategories: { some: { categoryId: { in: categoryIds } } },
@@ -289,7 +301,7 @@ exports.getCompetitiveMapData = async (req, res) => {
     let competitorData = [];
 
     if (advertiserHasComplianceReport) {
-      // ✅ Step 4A: If Advertiser has a Compliance Report
+      // Step 4A: If Advertiser has a Compliance Report
       advertiserComplianceData = complianceReports;
 
       // Get competitor's competitive reports (excluding client's uploads)
@@ -299,7 +311,7 @@ exports.getCompetitiveMapData = async (req, res) => {
 
       console.log("Returning compliance report vs competitors.");
     } else {
-      // ✅ Step 4B: If No Compliance Report, Use Competitive Uploads
+      // Step 4B: If No Compliance Report, Use Competitive Uploads
       advertiserCompetitiveData = await prisma.competitiveReport.findMany({
         where: { advertiserId: advertiserIdInt },
       });
