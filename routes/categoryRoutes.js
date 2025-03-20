@@ -13,8 +13,13 @@ router.post(
 router.get(
   "/api/categories",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   categoryController.getCategory
+);
+
+router.get(
+  "/api/category/:id",
+  authToken,
+  categoryController.getCategoryByBrand
 );
 
 router.put(

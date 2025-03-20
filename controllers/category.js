@@ -41,6 +41,31 @@ exports.getCategory = async (req, res) => {
   }
 };
 
+exports.getCategoryByBrand = async (req, res) => {
+  const { id } = req.params; // Brand ID from request params
+
+  try {
+    // Validate if brand exists and get its category
+    const brand = await prisma.brand.findUnique({
+      where: { id: parseInt(id) },
+      include: { category: true }, // Include the associated category
+    });
+
+    if (!brand) {
+      return res.status(404).json({ error: "Brand not found" });
+    }
+
+    res.status(200).json({
+      brandId: brand.id,
+      brandName: brand.name,
+      category: brand.category ? brand.category : null, // Return category if exists
+    });
+  } catch (error) {
+    console.error("Error retrieving category:", error);
+    res.status(500).json({ error: "Error retrieving category." });
+  }
+};
+
 //Update a Category
 exports.editCategory = async (req, res) => {
   const { id } = req.params; // Category ID

@@ -11,6 +11,8 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const searchRoutes = require("./routes/searchRoutes")
 const complianceRoutes = require("./routes/complianceRoutes");
 const bsvValuesRoutes = require("./routes/bsvValuesRoutes");
+const boardTypeRoutes = require("./routes/boardTypeRoutes");
+const competitiveRoutes = require("./routes/competitiveRoutes");
 const app = express();
 require("dotenv").config();
 
@@ -36,6 +38,8 @@ app.use("/", categoryRoutes);
 app.use("/", searchRoutes);
 app.use("/", complianceRoutes);
 app.use("/", bsvValuesRoutes);
+app.use("/", boardTypeRoutes);
+app.use("/", competitiveRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

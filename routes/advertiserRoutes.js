@@ -13,7 +13,6 @@ router.post(
 router.get(
   "/api/advertisers",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   advertiserController.getAdvertisers
 );
 

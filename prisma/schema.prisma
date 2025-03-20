@@ -26,6 +26,7 @@ model User {
   campaignsAsAccountManager Campaign[]         @relation("AccountManagerRelation")
   campaignsAsClient         Campaign[]         @relation("ClientRelation")
   complianceReports         ComplianceReport[] @relation("FieldAuditor")
+  competitiveReports        CompetitiveReport[] @relation("FieldAuditor")
   siteAssignments           SiteAssignment[]   @relation("FieldAuditorRelation")
   advertiser                Advertiser?        @relation(fields: [advertiserId], references: [id])
   industry                  Industry?          @relation(fields: [industryId], references: [id])
@@ -43,6 +44,20 @@ model Advertiser {
   name   String  @unique
   brands Brand[]
   users  User[]
+  CompetitiveReport CompetitiveReport[]
+
+  advertiserCategories AdvertiserCategory[]
+}
+
+// Join Table for Many-to-Many Relationship
+model AdvertiserCategory {
+  advertiserId Int
+  categoryId   Int
+
+  advertiser Advertiser @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([advertiserId, categoryId])
 }
 
 model Campaign {
@@ -120,10 +135,35 @@ model ComplianceReport {
   @@unique([siteCode, campaignId])
 }
 
+model CompetitiveReport {
+  id              Int      @id @default(autoincrement())
+  advertiserId    Int
+  advertiser      Advertiser @relation(fields: [advertiserId], references: [id])
+  brandId         Int
+  brand           Brand @relation(fields: [brandId], references: [id])
+  boardTypeId     Int
+  boardType       BoardType @relation(fields: [boardTypeId], references: [id])
+  categoryId      Int
+  category        Category @relation(fields: [categoryId], references: [id])
+  regionId        Int
+  region          Region @relation(fields: [regionId], references: [id])
+  stateId         Int
+  state           State @relation(fields: [stateId], references: [id])
+  cityId          Int
+  city            City @relation(fields: [cityId], references: [id])
+  images          String[]
+  geolocations     Json
+  capturedTimestamps  Json
+  uploadedBy       Int
+  FieldAuditor     User    @relation("FieldAuditor", fields: [uploadedBy], references: [id])
+  createdAt       DateTime @default(now())
+}
+
 model Region {
   id     Int     @id @default(autoincrement())
   name   String  @unique
   states State[] @relation("RegionStates")
+  CompetitiveReport CompetitiveReport[]
 }
 
 model State {
@@ -133,6 +173,7 @@ model State {
   cities   City[]
   region   Region @relation("RegionStates", fields: [regionId], references: [id])
   users    User[] @relation("UserStates")
+  CompetitiveReport CompetitiveReport[]
 }
 
 model City {
@@ -140,22 +181,33 @@ model City {
   name    String
   stateId Int
   state   State  @relation(fields: [stateId], references: [id])
+  CompetitiveReport CompetitiveReport[]
 }
 
 model Category {
   id     Int     @id @default(autoincrement())
   name   String
   brands Brand[]
+  CompetitiveReport CompetitiveReport[]
+
+  advertiserCategories AdvertiserCategory[]
 }
 
 model Brand {
   id           Int        @id @default(autoincrement())
-  name         String
+  name         String     @unique
   advertiserId Int
   categoryId   Int
   logo         String?
   advertiser   Advertiser @relation(fields: [advertiserId], references: [id])
   category     Category   @relation(fields: [categoryId], references: [id])
+  CompetitiveReport CompetitiveReport[]
+}
+
+model BoardType {
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  CompetitiveReport CompetitiveReport[]
 }
 
 model Structure {
