@@ -14,7 +14,7 @@ router.post(
 );
 
 router.get(
-  "/api/brands",
+  "/brands",
   authToken,
   brandController.getAllBrands
 );

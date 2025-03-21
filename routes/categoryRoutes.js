@@ -11,7 +11,7 @@ router.post(
 );
 
 router.get(
-  "/api/categories",
+  "/categories",
   authToken,
   categoryController.getCategory
 );

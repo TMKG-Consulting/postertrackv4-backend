@@ -11,7 +11,7 @@ router.post(
   locationsController.createRegion
 );
 router.get(
-  "/api/regions",
+  "/regions",
   authToken,
   locationsController.getRegions
 );
@@ -24,12 +24,12 @@ router.post(
   locationsController.createState
 );
 router.get(
-  "/api/regions/:regionId/states",
+  "/regions/:regionId/states",
   authToken,
   locationsController.getStates
 );
 router.get(
-  "/api/states",
+  "/states",
   authToken,
   locationsController.getAllStates
 );
@@ -42,12 +42,12 @@ router.post(
   locationsController.createCity
 );
 router.get(
-  "/api/states/:stateId/cities",
+  "/states/:stateId/cities",
   authToken,
   locationsController.getCities
 );
 router.get(
-  "/api/cities",
+  "/cities",
   authToken,
   locationsController.getAllCities
 );

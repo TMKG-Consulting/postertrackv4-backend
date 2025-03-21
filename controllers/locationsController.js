@@ -3,7 +3,7 @@ const { authRole } = require("../middleware/auth");
 const prisma = new PrismaClient();
 
 // Middleware to allow only SUPER_ADMIN and CHIEF_ACCOUNT_MANAGER
-const allowedRoles = ["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"];
+const allowedRoles = ["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "FIELD_AUDITOR"];
 
 // Create a Region
 exports.createRegion = [

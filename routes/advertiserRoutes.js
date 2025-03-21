@@ -11,7 +11,7 @@ router.post(
 );
 
 router.get(
-  "/api/advertisers",
+  "/advertisers",
   authToken,
   advertiserController.getAdvertisers
 );
