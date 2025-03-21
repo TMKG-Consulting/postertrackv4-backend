@@ -13,7 +13,6 @@ router.post(
 router.get(
   "/api/regions",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   locationsController.getRegions
 );
 
@@ -27,13 +26,11 @@ router.post(
 router.get(
   "/api/regions/:regionId/states",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   locationsController.getStates
 );
 router.get(
   "/api/states",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   locationsController.getAllStates
 );
 
@@ -47,13 +44,11 @@ router.post(
 router.get(
   "/api/states/:stateId/cities",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   locationsController.getCities
 );
 router.get(
   "/api/cities",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   locationsController.getAllCities
 );
 
