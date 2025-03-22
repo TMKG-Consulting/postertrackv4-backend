@@ -1,4 +1,4 @@
-async function paginate(model, page, limit, where, include = {}) {
+async function paginate(model, page, limit, where, include, orderBy = {}) {
   const skip = (page - 1) * limit;
 
   const [data, total] = await Promise.all([
@@ -7,6 +7,7 @@ async function paginate(model, page, limit, where, include = {}) {
       include, // Pass the include object
       skip,
       take: limit,
+      orderBy,
     }),
     model.count({ where }),
   ]);

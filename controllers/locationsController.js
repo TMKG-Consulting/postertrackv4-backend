@@ -27,7 +27,9 @@ exports.getRegions = [
   authRole(allowedRoles),
   async (req, res) => {
     try {
-      const regions = await prisma.region.findMany();
+      const regions = await prisma.region.findMany({
+        orderBy: { name: "asc" },
+      });
       res.json(regions);
     } catch (error) {
       res.status(500).json({ error: "Server error" });
@@ -61,6 +63,7 @@ exports.getStates = [
     try {
       const states = await prisma.state.findMany({
         where: { regionId: parseInt(regionId) },
+        orderBy: { name: "asc" },
       });
       res.json(states);
     } catch (error) {
@@ -75,7 +78,9 @@ exports.getAllStates = [
   authRole(allowedRoles),
   async (req, res) => {
     try {
-      const states = await prisma.state.findMany();
+      const states = await prisma.state.findMany({
+        orderBy: { name: "asc" },
+      });
       res.json(states);
     } catch (error) {
       res.status(500).json({ error: "Server error" });

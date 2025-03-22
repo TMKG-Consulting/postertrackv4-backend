@@ -86,9 +86,9 @@ exports.getBrands = async (req, res) => {
         advertiserId: parsedAdvertiserId,
       },
       {
-        advertiser: true, // Populate Advertiser data
-        category: true, // Populate Category data
-      }
+        advertiser: true, 
+        category: true, 
+      },
     );
 
     // Check if no brands were found

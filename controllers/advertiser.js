@@ -3,27 +3,6 @@ const prisma = new PrismaClient();
 const { paginate } = require("../Helpers/paginate");
 
 //Create an advertiser
-// exports.createAdvertiser = async (req, res) => {
-//   const { name } = req.body;
-//   try {
-//     const advertiser = await prisma.advertiser.create({
-//       data: {
-//         name: name,
-//       },
-//     });
-//     res.status(201).json(advertiser);
-//   } catch (error) {
-//     console.error("Create Advertiser Error:", error);
-//     if (error.code === "P2002") {
-//       res.status(400).json({
-//         error: `An advertiser with this name already exists: ${name}`,
-//       });
-//     } else {
-//       res.status(500).json({ error: "Server error" });
-//     }
-//   }
-// };
-
 exports.createAdvertiser = async (req, res) => {
   const { name, categoryIds } = req.body;
 
@@ -84,11 +63,16 @@ exports.getAdvertisers = async (req, res) => {
         }
       : {}; // Ensure `where` is an empty object if no search term
 
+    const include = {};
+    const orderBy = { name: "asc" };
+
     const { data, total, totalPages } = await paginate(
       prisma.advertiser,
       parseInt(page),
       parseInt(limit),
-      where
+      where,
+      include,
+      orderBy
     );
 
     res.status(200).json({

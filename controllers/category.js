@@ -23,10 +23,15 @@ exports.getCategory = async (req, res) => {
   const { page = 1, limit = 10 } = req.query;
 
   try {
+    const orderBy = { name: "asc" };
+
     const { data, total, totalPages } = await paginate(
       prisma.category,
       parseInt(page),
-      parseInt(limit)
+      parseInt(limit),
+      {},
+      {},
+      orderBy,
     );
 
     res.status(200).json({
