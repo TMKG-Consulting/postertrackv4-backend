@@ -100,20 +100,16 @@ exports.competitiveUpload = async (req, res) => {
           const latitude = exifData.tags?.GPSLatitude;
           const longitude = exifData.tags?.GPSLongitude;
           if (!latitude || !longitude) {
-            return res
-              .status(400)
-              .json({
-                error: `Image '${file.originalname}' must contain GPS geotag information.`,
-              });
+            return res.status(400).json({
+              error: `Image '${file.originalname}' must contain GPS geotag information.`,
+            });
           }
 
           const captureDate = exifData.tags?.DateTimeOriginal;
           if (!captureDate) {
-            return res
-              .status(400)
-              .json({
-                error: `Image '${file.originalname}' must contain capture date and timestamp.`,
-              });
+            return res.status(400).json({
+              error: `Image '${file.originalname}' must contain capture date and timestamp.`,
+            });
           }
 
           const timestamp = new Date(captureDate * 1000).toISOString();
@@ -132,12 +128,10 @@ exports.competitiveUpload = async (req, res) => {
 
           images.push(uploadedUrl);
         } catch (error) {
-          return res
-            .status(500)
-            .json({
-              error: "Error processing or uploading images.",
-              details: error.message,
-            });
+          return res.status(500).json({
+            error: "Error processing or uploading images.",
+            details: error.message,
+          });
         }
       }
     } else {
@@ -333,5 +327,51 @@ exports.getCompetitiveMapData = async (req, res) => {
   } catch (error) {
     console.error("Error fetching competitive map data:", error);
     res.status(500).json({ message: "Error fetching competitive map data" });
+  }
+};
+
+exports.getCompetitiveUploadHistory = async (req, res) => {
+  const { auditorId } = req.params;
+  try {
+    const parsedAuditorId = parseInt(auditorId);
+    if (isNaN(parsedAuditorId)) {
+      return res.status(400).json({ error: "Invalid field auditor ID." });
+    }
+
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const uploads = await prisma.competitiveReport.findMany({
+      skip: parseInt(skip),
+      take: parseInt(limit),
+      where: { FieldAuditor: { id: parsedAuditorId } },
+      include: {
+        advertiser: true,
+        brand: true,
+        boardType: true,
+        category: true,
+        region: true,
+        state: true,
+        city: true,
+        FieldAuditor: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const total = await prisma.competitiveReport.count({
+      where: { FieldAuditor: { id: parsedAuditorId } },
+    });
+
+    res.status(200).json({
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      uploads,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error retrieving competitive uploads" });
   }
 };

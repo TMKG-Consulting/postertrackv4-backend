@@ -33,4 +33,10 @@ router.get(
   competitiveController.getCompetitiveMapData
 );
 
+router.get(
+  "/competitive-upload/:auditorId",
+  authToken,
+  competitiveController.getCompetitiveUploadHistory
+);
+
 module.exports = router;
