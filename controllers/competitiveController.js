@@ -268,16 +268,12 @@ exports.getCompetitiveMapData = async (req, res) => {
       (cat) => cat.categoryId
     );
 
-    console.log("Advertiser Name:", advertiserName);
-    console.log("Category IDs:", categoryIds);
-
     // Step 2: Find Compliance Reports for the Advertiser
     const complianceReports = await prisma.complianceReport.findMany({
-      where: { advertiser: advertiserName }, // Now checking the correct field
+      where: { advertiser: advertiserName },
     });
 
     const advertiserHasComplianceReport = complianceReports.length > 0;
-    console.log("Has Compliance Report:", advertiserHasComplianceReport);
 
     // Step 3: Find Competitors
     const competitors = await prisma.advertiser.findMany({
@@ -288,7 +284,6 @@ exports.getCompetitiveMapData = async (req, res) => {
     });
 
     const competitorIds = competitors.map((comp) => comp.id);
-    console.log("Competitor IDs:", competitorIds);
 
     let advertiserComplianceData = [];
     let advertiserCompetitiveData = [];
@@ -301,13 +296,29 @@ exports.getCompetitiveMapData = async (req, res) => {
       // Get competitor's competitive reports (excluding client's uploads)
       competitorData = await prisma.competitiveReport.findMany({
         where: { advertiserId: { in: competitorIds } },
+        include: {
+          advertiser: true,
+          brand: true,
+          boardType: true,
+          category: true,
+          region: true,
+          state: true,
+          city: true,
+        },
       });
-
-      console.log("Returning compliance report vs competitors.");
     } else {
       // Step 4B: If No Compliance Report, Use Competitive Uploads
       advertiserCompetitiveData = await prisma.competitiveReport.findMany({
         where: { advertiserId: advertiserIdInt },
+        include: {
+          advertiser: true,
+          brand: true,
+          boardType: true,
+          category: true,
+          region: true,
+          state: true,
+          city: true,
+        },
       });
 
       // Get all competitive reports (including client's own)
