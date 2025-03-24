@@ -323,10 +323,17 @@ exports.getCompetitiveMapData = async (req, res) => {
 
       // Get all competitive reports (including client's own)
       competitorData = await prisma.competitiveReport.findMany({
-        where: { advertiserId: { in: [...competitorIds, advertiserIdInt] } },
+        where: { advertiserId: { in: [...competitorIds] } },
+        include: {
+          advertiser: true,
+          brand: true,
+          boardType: true,
+          category: true,
+          region: true,
+          state: true,
+          city: true,
+        },
       });
-
-      console.log("Returning client's competitive uploads vs competitors.");
     }
 
     res.status(200).json({
