@@ -2,7 +2,7 @@ const nodemailer = require("nodemailer");
 
 // Configure email transport
 const transporter = nodemailer.createTransport({
-  host: "mail.postertrack.com",
+  host: "mail.highcrown.com",
   port: 465,
   secure: true,
   auth: {

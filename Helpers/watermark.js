@@ -24,7 +24,7 @@ const applyWatermarks = async (buffer, captureDate, city) => {
   // Define SVG overlay with improved dynamic positioning
   const svgOverlay = `
       <svg width="${imageWidth}" height="${imageHeight}">
-        <text x="40" y="120" font-size="100px" font-weight="bold" fill="red">TMKG PosterTrack IMG</text>
+        <text x="40" y="120" font-size="100px" font-weight="bold" fill="red">Highcrown Audit IMG</text>
         <text x="${imageWidth - 40}" y="${
     imageHeight - 40
   }" font-size="100px" font-weight="bold" fill="red" text-anchor="end">${watermarkText}</text>

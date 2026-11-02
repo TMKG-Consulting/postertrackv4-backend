@@ -82,7 +82,7 @@ const generateRandomPassword = () => {
 const sendEmail = async (to, subject, text) => {
   try {
     await transporter.sendMail({
-      from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
+      from: `"Highcrown Media Audit" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text,
@@ -256,10 +256,10 @@ exports.createUser = async (req, res) => {
     // Send account creation email
     await sendEmail(
       normalizedEmail,
-      "Your PosterTrack Account Details",
+      "Your Highcrown Account Details",
       `Your account has been created. Here is your login information: 
       Email - ${normalizedEmail} 
-      Password - ${generatedPassword}`
+      Password - ${generatedPassword}` 
     );
 
     res.status(201).json(newUser);
