@@ -15,6 +15,7 @@ const boardTypeRoutes = require("./routes/boardTypeRoutes");
 const competitiveRoutes = require("./routes/competitiveRoutes");
 const app = express();
 require("dotenv").config();
+require("./lib/keepAlive")
 
 app.use(
   cors({

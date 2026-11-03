@@ -89,6 +89,7 @@ const sendEmail = async (to, subject, text) => {
     });
   } catch (error) {
     console.error("Error sending email:", error);
+    throw error;
   }
 };
 
@@ -106,6 +107,7 @@ exports.createUser = async (req, res) => {
     additionalEmail,
     industryId,
   } = req.body;
+  let createdUserId;
 
   try {
     if (!email || !role) {
@@ -252,6 +254,7 @@ exports.createUser = async (req, res) => {
         industryId: role === "CLIENT_AGENCY_USER" ? industryId : undefined,
       },
     });
+    createdUserId = newUser.id;
 
     // Send account creation email
     await sendEmail(
@@ -265,6 +268,24 @@ exports.createUser = async (req, res) => {
     res.status(201).json(newUser);
   } catch (error) {
     console.error("Error creating user:", error);
+
+    if (createdUserId !== undefined) {
+      try {
+        await prisma.user.delete({ where: { id: createdUserId } });
+      } catch (cleanupError) {
+        console.error("Error removing user after email failure:", cleanupError);
+        return res.status(500).json({
+          error:
+            "The account email could not be sent, and the new account could not be rolled back. Contact an administrator.",
+        });
+      }
+
+      return res.status(502).json({
+        error:
+          "The account email could not be sent. The account was not created; please try again later.",
+      });
+    }
+
     res.status(500).json({ error: "Error creating user account." });
   }
 };
