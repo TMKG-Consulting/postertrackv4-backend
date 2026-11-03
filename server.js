@@ -19,7 +19,7 @@ require("./lib/keepAlive")
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:5000", "https://manugee95-oohtrack-frontend-3jbr.vercel.app"],
+    origin: ["http://localhost:3000", "http://localhost:5000", "https://manugee95-oohtrack-frontend-3jbr.vercel.app", "https://mediatrak.hcdigitalhub.com"],
     allowedHeaders: ["Content-Type", "Authorization", "auth-token"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   })
