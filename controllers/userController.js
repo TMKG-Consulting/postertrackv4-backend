@@ -375,6 +375,12 @@ exports.fetchAllUsers = async (req, res) => {
         firstname: true,
         lastname: true,
         advertiserId: true,
+        advertiser: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         email: true,
         phone: true,
         address: true,
@@ -404,6 +410,12 @@ exports.getUser = async (req, res) => {
         firstname: true,
         lastname: true,
         advertiserId: true,
+        advertiser: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         email: true,
         phone: true,
         address: true,
