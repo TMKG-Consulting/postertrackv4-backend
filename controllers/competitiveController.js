@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../lib/prisma");
 const ExifParser = require("exif-parser");
 const { uploadGCS } = require("../Helpers/gcs");
 const { applyWatermarks } = require("../Helpers/watermark");

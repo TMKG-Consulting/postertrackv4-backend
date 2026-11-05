@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../lib/prisma");
 
 exports.search = async (req, res) => {
   const { q, type } = req.query; // `q` is the search term, `type` is the entity type

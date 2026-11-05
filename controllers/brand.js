@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../lib/prisma");
 const { uploadToGCS } = require("../Helpers/gcs");
 const { paginate } = require("../Helpers/paginate");
 

@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../lib/prisma");
 const { paginate } = require("../Helpers/paginate");
 
 //Create an advertiser
@@ -36,7 +35,12 @@ exports.createAdvertiser = async (req, res) => {
       include: { advertiserCategories: { include: { category: true } } },
     });
 
-    res.status(201).json(advertiser);
+    res.status(201).json({
+      ...advertiser,
+      categoryIds: advertiser.advertiserCategories.map(
+        ({ categoryId }) => categoryId
+      ),
+    });
   } catch (error) {
     console.error("Create Advertiser Error:", error);
     if (error.code === "P2002") {
@@ -63,7 +67,11 @@ exports.getAdvertisers = async (req, res) => {
         }
       : {}; // Ensure `where` is an empty object if no search term
 
-    const include = {};
+    const include = {
+      advertiserCategories: {
+        select: { categoryId: true },
+      },
+    };
     const orderBy = { name: "asc" };
 
     const { data, total, totalPages } = await paginate(
@@ -76,7 +84,12 @@ exports.getAdvertisers = async (req, res) => {
     );
 
     res.status(200).json({
-      data,
+      data: data.map((advertiser) => ({
+        ...advertiser,
+        categoryIds: advertiser.advertiserCategories.map(
+          ({ categoryId }) => categoryId
+        ),
+      })),
       total,
       totalPages,
       currentPage: parseInt(page),
@@ -160,7 +173,12 @@ exports.editAdvertiser = async (req, res) => {
 
     res.status(200).json({
       message: "Advertiser updated successfully",
-      advertiser: updatedAdvertiser,
+      advertiser: {
+        ...updatedAdvertiser,
+        categoryIds: updatedAdvertiser.advertiserCategories.map(
+          ({ categoryId }) => categoryId
+        ),
+      },
     });
   } catch (error) {
     console.error("Error updating advertiser:", error);

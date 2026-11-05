@@ -3,8 +3,7 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { Storage } = require("@google-cloud/storage");
 const path = require("path");
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../lib/prisma");
 const { paginate } = require("../Helpers/paginate");
 const { transporter } = require("../Helpers/transporter");
 
