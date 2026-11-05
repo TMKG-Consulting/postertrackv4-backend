@@ -31,6 +31,7 @@ model User {
   advertiser                Advertiser?        @relation(fields: [advertiserId], references: [id])
   industry                  Industry?          @relation(fields: [industryId], references: [id])
   statesCovered             State[]            @relation("UserStates")
+  citiesCovered             City[]             @relation("UserCities")
 }
 
 model Industry {
@@ -181,6 +182,7 @@ model City {
   name    String
   stateId Int
   state   State  @relation(fields: [stateId], references: [id])
+  users   User[] @relation("UserCities")
   CompetitiveReport CompetitiveReport[]
 }
 

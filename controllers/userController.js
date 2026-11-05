@@ -8,6 +8,26 @@ const prisma = new PrismaClient();
 const { paginate } = require("../Helpers/paginate");
 const { transporter } = require("../Helpers/transporter");
 
+const normalizeIdArray = (value) => {
+  let values = value;
+
+  if (typeof values === "string") {
+    try {
+      values = JSON.parse(values);
+    } catch (error) {
+      values = values.split(",").map((item) => item.trim());
+    }
+  }
+
+  if (!Array.isArray(values)) values = [values];
+  const ids = values.map(Number);
+  if (ids.length === 0 || ids.some((id) => !Number.isInteger(id) || id <= 0)) {
+    throw new Error("Coverage selections must contain valid IDs.");
+  }
+
+  return [...new Set(ids)];
+};
+
 // Create a Super Admin
 exports.createSuperAdmin = async (req, res) => {
   const { firstname, lastname, email, phone, password } = req.body;
@@ -103,6 +123,7 @@ exports.createUser = async (req, res) => {
     address,
     role,
     statesCovered,
+    citiesCovered,
     name,
     additionalEmail,
     industryId,
@@ -113,6 +134,8 @@ exports.createUser = async (req, res) => {
     if (!email || !role) {
       return res.status(400).json({ error: "Email and role are required." });
     }
+
+    const normalizedRole = String(role).trim().toUpperCase();
 
     const normalizedEmail = email.toLowerCase(); // Convert email to lowercase
     let normalizedAdditionalEmails = []; // Ensure this variable is always declared
@@ -129,33 +152,66 @@ exports.createUser = async (req, res) => {
     }
 
     // Role-based validations
-    if (role === "CHIEF_ACCOUNT_MANAGER" && req.user.role !== "SUPER_ADMIN") {
+    if (
+      normalizedRole === "CHIEF_ACCOUNT_MANAGER" &&
+      req.user.role !== "SUPER_ADMIN"
+    ) {
       return res.status(403).json({
         error: "Only Super Admin can create a Chief Account Manager.",
       });
     }
 
-    if (role === "FIELD_AUDITOR") {
-      if (!firstname || !lastname || !Array.isArray(statesCovered)) {
+    let normalizedStatesCovered = [];
+    let normalizedCitiesCovered = [];
+
+    if (normalizedRole === "FIELD_AUDITOR") {
+      if (!firstname || !lastname) {
         return res.status(400).json({
           error:
-            "Firstname, lastname, and statesCovered (array of state IDs) are required for Field Auditor role.",
+            "Firstname and lastname are required for Field Auditor role.",
         });
       }
 
-      // Validate state IDs
+      try {
+        normalizedStatesCovered = normalizeIdArray(statesCovered);
+        normalizedCitiesCovered = normalizeIdArray(citiesCovered);
+      } catch (error) {
+        return res.status(400).json({
+          error:
+            "Field Auditor creation requires non-empty statesCovered and citiesCovered arrays of valid IDs.",
+        });
+      }
+
       const validStates = await prisma.state.findMany({
-        where: { id: { in: statesCovered } },
+        where: { id: { in: normalizedStatesCovered } },
+      });
+      const validCities = await prisma.city.findMany({
+        where: { id: { in: normalizedCitiesCovered } },
       });
 
-      if (validStates.length !== statesCovered.length) {
+      if (validStates.length !== normalizedStatesCovered.length) {
+        return res
+          .status(400)
+          .json({ error: "Some provided state IDs are invalid." });
+      }
+      if (validCities.length !== normalizedCitiesCovered.length) {
         return res.status(400).json({
-          error: "Some provided state IDs are invalid.",
+          error: "Some provided city IDs are invalid.",
+        });
+      }
+
+      if (
+        validCities.some(
+          (city) => !normalizedStatesCovered.includes(city.stateId)
+        )
+      ) {
+        return res.status(400).json({
+          error: "Every covered city must belong to a selected covered state.",
         });
       }
     }
 
-    if (role === "CLIENT_AGENCY_USER") {
+    if (normalizedRole === "CLIENT_AGENCY_USER") {
       if (!name) {
         return res.status(400).json({
           error:
@@ -237,22 +293,33 @@ exports.createUser = async (req, res) => {
     // Create the user
     const newUser = await prisma.user.create({
       data: {
-        firstname: role === "CLIENT_AGENCY_USER" ? undefined : firstname,
-        lastname: role === "CLIENT_AGENCY_USER" ? undefined : lastname,
+        firstname:
+          normalizedRole === "CLIENT_AGENCY_USER" ? undefined : firstname,
+        lastname:
+          normalizedRole === "CLIENT_AGENCY_USER" ? undefined : lastname,
         email: normalizedEmail, // Store email in lowercase
         phone,
         address,
         password: hashedPassword,
-        role,
+        role: normalizedRole,
         statesCovered:
-          role === "FIELD_AUDITOR"
-            ? { connect: statesCovered.map((id) => ({ id })) }
+          normalizedRole === "FIELD_AUDITOR"
+            ? { connect: normalizedStatesCovered.map((id) => ({ id })) }
             : undefined,
-        advertiserId: role === "CLIENT_AGENCY_USER" ? name : undefined,
+        citiesCovered:
+          normalizedRole === "FIELD_AUDITOR"
+            ? { connect: normalizedCitiesCovered.map((id) => ({ id })) }
+            : undefined,
+        advertiserId:
+          normalizedRole === "CLIENT_AGENCY_USER" ? name : undefined,
         additionalEmail:
-          role === "CLIENT_AGENCY_USER" ? normalizedAdditionalEmails : [],
-        industryId: role === "CLIENT_AGENCY_USER" ? industryId : undefined,
+          normalizedRole === "CLIENT_AGENCY_USER"
+            ? normalizedAdditionalEmails
+            : [],
+        industryId:
+          normalizedRole === "CLIENT_AGENCY_USER" ? industryId : undefined,
       },
+      include: { statesCovered: true, citiesCovered: true },
     });
     createdUserId = newUser.id;
 
@@ -314,6 +381,7 @@ exports.fetchAllUsers = async (req, res) => {
         address: true,
         role: true,
         statesCovered: true,
+        citiesCovered: true,
       },
     });
 
@@ -343,6 +411,7 @@ exports.getUser = async (req, res) => {
         profilePicture: true,
         role: true,
         statesCovered: req.user.role === "FIELD_AUDITOR" ? true : false,
+        citiesCovered: req.user.role === "FIELD_AUDITOR" ? true : false,
       },
     });
 
@@ -405,6 +474,7 @@ exports.updateUser = async (req, res) => {
     phone,
     address,
     statesCovered,
+    citiesCovered,
     additionalEmail,
     status,
     industryId,
@@ -436,37 +506,70 @@ exports.updateUser = async (req, res) => {
 
     // Role-specific validations
     let parsedStates = [];
+    let parsedCities = [];
 
     if (userToUpdate.role === "FIELD_AUDITOR") {
-      if (!firstname || !lastname || !statesCovered) {
+      if (
+        !firstname ||
+        !lastname ||
+        statesCovered === undefined ||
+        citiesCovered === undefined
+      ) {
         return res.status(400).json({
           error:
-            "Firstname, lastname, and statesCovered are required for Field Auditor role.",
+            "Firstname, lastname, statesCovered, and citiesCovered are required for Field Auditor role.",
         });
       }
 
-      if (typeof statesCovered === "string") {
-        // If it's a JSON string (e.g., "[33, 45, 56]"), parse it
-        try {
-          parsedStates = JSON.parse(statesCovered);
-          if (!Array.isArray(parsedStates)) throw new Error();
-        } catch (error) {
-          parsedStates = [Number(statesCovered)]; // Handle single number as string
+      const parseCoverageIds = (value, fieldName) => {
+        if (typeof value === "string") {
+          try {
+            const parsed = JSON.parse(value);
+            if (!Array.isArray(parsed)) throw new Error();
+            return parsed.map(Number);
+          } catch (error) {
+            return [Number(value)];
+          }
         }
-      } else if (Array.isArray(statesCovered)) {
-        parsedStates = statesCovered.map(Number); // Convert all elements to numbers
+        if (Array.isArray(value)) return value.map(Number);
+        throw new Error(`Invalid ${fieldName} format.`);
+      };
+
+      if (typeof citiesCovered === "string") {
+        try {
+          parsedCities = JSON.parse(citiesCovered);
+          if (!Array.isArray(parsedCities)) throw new Error();
+        } catch (error) {
+          parsedCities = [Number(citiesCovered)];
+        }
+      } else if (Array.isArray(citiesCovered)) {
+        parsedCities = citiesCovered.map(Number);
       } else {
-        return res.status(400).json({ error: "Invalid statesCovered format." });
+        return res.status(400).json({ error: "Invalid citiesCovered format." });
       }
 
-      // Validate state IDs
+      try {
+        parsedStates = parseCoverageIds(statesCovered, "statesCovered");
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+
       const validStates = await prisma.state.findMany({
         where: { id: { in: parsedStates } },
       });
-
       if (validStates.length !== parsedStates.length) {
+        return res
+          .status(400)
+          .json({ error: "Some provided state IDs are invalid." });
+      }
+
+      const validCities = await prisma.city.findMany({
+        where: { id: { in: parsedCities } },
+      });
+
+      if (validCities.length !== parsedCities.length) {
         return res.status(400).json({
-          error: "Some provided state IDs are invalid.",
+          error: "Some provided city IDs are invalid.",
         });
       }
     }
@@ -521,8 +624,12 @@ exports.updateUser = async (req, res) => {
         profilePicture: publicUrl,
         statesCovered:
           userToUpdate.role === "FIELD_AUDITOR"
+            ? { set: parsedStates.map((stateId) => ({ id: stateId })) }
+            : undefined,
+        citiesCovered:
+          userToUpdate.role === "FIELD_AUDITOR"
             ? {
-                set: parsedStates.map((stateId) => ({ id: stateId })), // REPLACING existing states
+                set: parsedCities.map((cityId) => ({ id: cityId })),
               }
             : undefined,
         additionalEmail:
@@ -537,6 +644,7 @@ exports.updateUser = async (req, res) => {
       },
       include: {
         statesCovered: true,
+        citiesCovered: true,
       },
     });
 
@@ -607,7 +715,10 @@ exports.getFieldAuditors = async (req, res) => {
       parseInt(page),
       parseInt(limit),
       where,
-      { statesCovered: true }
+      {
+        statesCovered: true,
+        citiesCovered: { include: { state: true } },
+      }
     );
 
     res.status(200).json({

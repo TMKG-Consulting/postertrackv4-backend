@@ -167,28 +167,31 @@ exports.createCampaign = async (req, res) => {
     });
 
     const fieldAuditors = await prisma.user.findMany({
-      where: { role: "FIELD_AUDITOR" },
+      where: { role: "FIELD_AUDITOR", status: true },
       include: {
-        statesCovered: { select: { name: true } },
+        citiesCovered: { include: { state: { select: { name: true } } } },
       },
     });
 
     const siteAssignments = [];
-    const stateAuditorMap = {};
+    const cityAuditorMap = {};
 
     for (const auditor of fieldAuditors) {
-      for (const state of auditor.statesCovered) {
-        const normalizedState = state.name.trim().toLowerCase();
-        if (!stateAuditorMap[normalizedState]) {
-          stateAuditorMap[normalizedState] = [];
+      for (const city of auditor.citiesCovered) {
+        const key = `${city.state.name.trim().toLowerCase()}|${city.name
+          .trim()
+          .toLowerCase()}`;
+        if (!cityAuditorMap[key]) {
+          cityAuditorMap[key] = [];
         }
-        stateAuditorMap[normalizedState].push(auditor.id);
+        cityAuditorMap[key].push(auditor.id);
       }
     }
 
     for (const [index, site] of data.entries()) {
       const state = site.state ? site.state.trim().toLowerCase() : "";
-      const auditors = stateAuditorMap[state];
+      const city = site.city ? site.city.trim().toLowerCase() : "";
+      const auditors = cityAuditorMap[`${state}|${city}`];
 
       if (auditors && auditors.length > 0) {
         const auditorId = auditors[index % auditors.length];
@@ -199,7 +202,7 @@ exports.createCampaign = async (req, res) => {
           status: "pending",
         });
       } else {
-        console.warn(`No auditors found for state: ${state}`);
+        console.warn(`No auditors found for city: ${city}, state: ${state}`);
       }
     }
 
@@ -270,8 +273,10 @@ exports.addSitesToCampaign = async (req, res) => {
     });
 
     const fieldAuditors = await prisma.user.findMany({
-      where: { role: "FIELD_AUDITOR" },
-      include: { statesCovered: { select: { name: true } } },
+      where: { role: "FIELD_AUDITOR", status: true },
+      include: {
+        citiesCovered: { include: { state: { select: { name: true } } } },
+      },
     });
 
     if (!fieldAuditors || fieldAuditors.length === 0) {
@@ -280,11 +285,13 @@ exports.addSitesToCampaign = async (req, res) => {
         .json({ error: "No field auditors found for site assignments." });
     }
 
-    const stateAuditorMap = fieldAuditors.reduce((map, auditor) => {
-      auditor.statesCovered.forEach((state) => {
-        const normalizedState = state.name.trim().toLowerCase();
-        if (!map[normalizedState]) map[normalizedState] = [];
-        map[normalizedState].push(auditor.id);
+    const cityAuditorMap = fieldAuditors.reduce((map, auditor) => {
+      auditor.citiesCovered.forEach((city) => {
+        const key = `${city.state.name.trim().toLowerCase()}|${city.name
+          .trim()
+          .toLowerCase()}`;
+        if (!map[key]) map[key] = [];
+        map[key].push(auditor.id);
       });
       return map;
     }, {});
@@ -292,10 +299,11 @@ exports.addSitesToCampaign = async (req, res) => {
     const siteAssignments = data
       .map((site, index) => {
         const state = site.state ? site.state.trim().toLowerCase() : "";
-        const auditors = stateAuditorMap[state] || [];
+        const city = site.city ? site.city.trim().toLowerCase() : "";
+        const auditors = cityAuditorMap[`${state}|${city}`] || [];
 
         if (auditors.length === 0) {
-          console.warn(`No auditors found for state: ${state}`);
+          console.warn(`No auditors found for city: ${city}, state: ${state}`);
           return null;
         }
 
