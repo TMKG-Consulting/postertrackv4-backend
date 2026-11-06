@@ -1,11 +1,10 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
 const { Storage } = require("@google-cloud/storage");
 const path = require("path");
 const prisma = require("../lib/prisma");
 const { paginate } = require("../Helpers/paginate");
-const { transporter } = require("../Helpers/transporter");
+const { sendEmail } = require("../Helpers/email");
 
 const normalizeIdArray = (value) => {
   let values = value;
@@ -95,21 +94,6 @@ exports.login = async (req, res) => {
 // Function to generate a random password
 const generateRandomPassword = () => {
   return Math.random().toString(36).slice(-8);
-};
-
-// Function to send email
-const sendEmail = async (to, subject, text) => {
-  try {
-    await transporter.sendMail({
-      from: `"Highcrown Media Audit" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      text,
-    });
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error;
-  }
 };
 
 // Super Admin or Chief Account Manager creating other users
@@ -323,13 +307,13 @@ exports.createUser = async (req, res) => {
     createdUserId = newUser.id;
 
     // Send account creation email
-    await sendEmail(
-      normalizedEmail,
-      "Your Highcrown Account Details",
-      `Your account has been created. Here is your login information: 
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Your Highcrown Account Details",
+      text: `Your account has been created. Here is your login information:
       Email - ${normalizedEmail} 
-      Password - ${generatedPassword}` 
-    );
+      Password - ${generatedPassword}`,
+    });
 
     res.status(201).json(newUser);
   } catch (error) {

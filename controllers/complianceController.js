@@ -1,6 +1,6 @@
 const prisma = require("../lib/prisma");
 const { uploadGCS } = require("../Helpers/gcs");
-const { transporter } = require("../Helpers/transporter");
+const { sendEmail } = require("../Helpers/email");
 const ExifParser = require("exif-parser");
 const { applyWatermarks } = require("../Helpers/watermark");
 
@@ -254,8 +254,7 @@ exports.complianceUpload = async (req, res) => {
       }));
 
       try {
-        await transporter.sendMail({
-          from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
+        await sendEmail({
           to: accountManagerEmail,
           subject: "OOH Compliance Aberration Alert!",
           html: aberrationDetails,
@@ -611,8 +610,7 @@ exports.updateComplianceStatus = async (req, res) => {
       if (recipients.length > 0) {
         try {
           for (const recipient of recipients) {
-            await transporter.sendMail({
-              from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
+            await sendEmail({
               to: recipient,
               subject: "OOH Compliance Aberration Alert!",
               html: aberrationDetails,
@@ -1076,8 +1074,7 @@ exports.updateComplianceReport = async (req, res) => {
         try {
           console.log("Sending email...");
           for (const recipient of recipients) {
-            await transporter.sendMail({
-              from: `"TMKG Media Audit" <${process.env.EMAIL_USER}>`,
+            await sendEmail({
               to: recipient,
               subject: "OOH Compliance Aberration Alert!",
               html: aberrationDetails,
