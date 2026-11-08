@@ -32,6 +32,18 @@ model User {
   industry                  Industry?          @relation(fields: [industryId], references: [id])
   statesCovered             State[]            @relation("UserStates")
   citiesCovered             City[]             @relation("UserCities")
+  clientManagerAssignment   ClientAccountManager?  @relation("AssignedClient")
+  managedClients            ClientAccountManager[] @relation("AssignedAccountManager")
+}
+
+model ClientAccountManager {
+  clientId         Int      @id
+  accountManagerId Int
+  assignedAt       DateTime @default(now())
+  client           User     @relation("AssignedClient", fields: [clientId], references: [id], onDelete: Cascade)
+  accountManager   User     @relation("AssignedAccountManager", fields: [accountManagerId], references: [id], onDelete: Restrict)
+
+  @@index([accountManagerId])
 }
 
 model Industry {
@@ -80,13 +92,13 @@ model SiteAssignment {
   id               Int                @id @default(autoincrement())
   campaignId       Int
   siteCode         String
-  fieldAuditorId   Int
+  fieldAuditorId   Int?
   status           String             @default("pending")
   editedAt         DateTime?
   uploadedAt       DateTime           @default(now())
   ComplianceReport ComplianceReport[]
   campaign         Campaign           @relation("CampaignRelation", fields: [campaignId], references: [id])
-  fieldAuditor     User               @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
+  fieldAuditor     User?              @relation("FieldAuditorRelation", fields: [fieldAuditorId], references: [id])
 }
 
 model ComplianceReport {
@@ -102,7 +114,6 @@ model ComplianceReport {
   structureId      Int
   posterId         Int
   illuminationId   Int
-  routeId          Int
   sideId           Int
   comment          String
   imageUrls        String[]      
@@ -112,13 +123,12 @@ model ComplianceReport {
   uploadedAt       DateTime       @default(now())
   status           String         @default("pending")
   siteAssignmentId Int?
-  bsv              String         @default("0%")
+  bsv              String?         @default("0%")
   city             String
   state            String
   campaign         Campaign       @relation(fields: [campaignId], references: [id])
   Illumination     Illumination   @relation(fields: [illuminationId], references: [id])
   Poster           Poster         @relation(fields: [posterId], references: [id])
-  Route            Route          @relation(fields: [routeId], references: [id])
   Side             Side           @relation(fields: [sideId], references: [id])
   siteAssignment   SiteAssignment? @relation(fields: [siteAssignmentId], references: [id], onDelete: Cascade)
   Structure        Structure      @relation(fields: [structureId], references: [id])
@@ -233,7 +243,6 @@ model Illumination {
 model Route {
   id               Int                @id @default(autoincrement())
   name             String
-  ComplianceReport ComplianceReport[]
 }
 
 model Side {

@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/userController");
+const clientAccountManagerController = require("../controllers/clientAccountManagerController");
 const { authToken, authRole } = require("../middleware/auth");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
@@ -49,6 +50,19 @@ router.get(
   authToken,
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   userController.getClients
+);
+
+router.put(
+  "/clients/:clientId/account-manager",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
+  clientAccountManagerController.assignAccountManager
+);
+router.get(
+  "/client-account-managers",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
+  clientAccountManagerController.listAssignments
 );
 
 module.exports = router;

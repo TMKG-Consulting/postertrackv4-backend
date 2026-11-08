@@ -78,6 +78,7 @@ router.get(
 router.get(
   "/view-campaign-compliance/:campaignID",
   authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   complianceController.getComplianceReportsForCampaign
 );
 

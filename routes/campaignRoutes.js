@@ -69,12 +69,28 @@ router.get(
 router.get(
   "/campaign-allocations",
   authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   campaignController.getCampaignAllocations
+);
+
+router.get(
+  "/site-assignments/unassigned",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
+  campaignController.getUnassignedSiteAssignments
+);
+
+router.patch(
+  "/site-assignments/:id/assign",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
+  campaignController.assignSiteToAuditor
 );
 
 router.get(
   "/campaign/:campaignId/auditor-tasks",
   authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"]),
   campaignController.viewAllocation
 );
 

@@ -23,7 +23,6 @@ exports.complianceUpload = async (req, res) => {
     structureId,
     posterId,
     illuminationId,
-    routeId,
     sideId,
   } = req.body;
 
@@ -49,7 +48,6 @@ exports.complianceUpload = async (req, res) => {
       structureId,
       posterId,
       illuminationId,
-      routeId,
       sideId,
     };
 
@@ -166,7 +164,6 @@ exports.complianceUpload = async (req, res) => {
         campaign: { connect: { id: parseInt(campaignId) } },
         Illumination: { connect: { id: parseInt(illuminationId) } },
         Poster: { connect: { id: parseInt(posterId) } },
-        Route: { connect: { id: parseInt(routeId) } },
         Side: { connect: { id: parseInt(sideId) } },
         Structure: { connect: { id: parseInt(structureId) } },
         FieldAuditor: { connect: { id: parseInt(fieldAuditorId) } },
@@ -316,7 +313,6 @@ exports.getAllComplianceUploads = async (req, res) => {
         include: {
           Illumination: true,
           Poster: true,
-          Route: true,
           Side: true,
           Structure: true,
           siteAssignment: true,
@@ -371,7 +367,6 @@ exports.viewComplianceUpload = async (req, res) => {
       include: {
         Illumination: true,
         Poster: true,
-        Route: true,
         Side: true,
         Structure: true,
         siteAssignment: true,
@@ -733,7 +728,6 @@ exports.checkComplianceUpload = async (req, res) => {
         Structure: true,
         Poster: true,
         Illumination: true,
-        Route: true,
         Side: true,
       },
     });
@@ -841,20 +835,41 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
   const { campaignID } = req.params;
   const { page = 1, limit = 10 } = req.query;
   const userRole = req.user.role;
-  const accountManagerID = req.user.id;
+  const accountManagerId = req.user.id;
 
   if (!campaignID) {
     return res.status(400).json({ error: "Campaign ID is required." });
   }
 
   try {
-    // Base query conditions
-    const whereCondition = { campaignId: parseInt(campaignID) };
-
-    // Restrict data access for Account Managers
-    if (userRole === "ACCOUNT_MANAGER") {
-      whereCondition["campaign.accountManagerId"] = accountManagerID;
+    if (!["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"].includes(userRole)) {
+      return res.status(403).json({ error: "You are not authorized to view campaign compliance reports." });
     }
+
+    const campaignId = Number(campaignID);
+    if (!Number.isInteger(campaignId) || campaignId <= 0) {
+      return res.status(400).json({ error: "A valid campaign ID is required." });
+    }
+
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { id: true, clientId: true },
+    });
+    if (!campaign) return res.status(404).json({ error: "Campaign not found." });
+
+    if (userRole === "ACCOUNT_MANAGER") {
+      const clientAssignment = await prisma.clientAccountManager.findUnique({
+        where: { clientId: campaign.clientId },
+        select: { accountManagerId: true },
+      });
+      if (clientAssignment?.accountManagerId !== accountManagerId) {
+        return res.status(403).json({
+          error: "You can only view compliance reports for clients assigned to you.",
+        });
+      }
+    }
+
+    const whereCondition = { campaignId: campaign.id };
 
     // Fetch compliance reports with pagination
     const complianceReports = await prisma.complianceReport.findMany({
@@ -871,7 +886,6 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
         },
         Poster: true,
         Structure: true,
-        Route: true,
         Side: true,
         Illumination: true,
         FieldAuditor: {
@@ -919,7 +933,6 @@ exports.updateComplianceReport = async (req, res) => {
     structureId,
     posterId,
     illuminationId,
-    routeId,
     sideId,
     visibilityDistance,
     trafficDensity,
@@ -937,7 +950,6 @@ exports.updateComplianceReport = async (req, res) => {
     !structureId &&
     !posterId &&
     !illuminationId &&
-    !routeId &&
     !sideId
   ) {
     return res
@@ -978,7 +990,6 @@ exports.updateComplianceReport = async (req, res) => {
     if (posterId) updateData.Poster = { connect: { id: parseInt(posterId) } };
     if (illuminationId)
       updateData.Illumination = { connect: { id: parseInt(illuminationId) } };
-    if (routeId) updateData.Route = { connect: { id: parseInt(routeId) } };
     if (sideId) updateData.Side = { connect: { id: parseInt(sideId) } };
     if (visibilityDistance) updateData.visibilityDistance = visibilityDistance;
     if (trafficDensity) updateData.trafficDensity = trafficDensity;
@@ -996,7 +1007,6 @@ exports.updateComplianceReport = async (req, res) => {
         Structure: true,
         Poster: true,
         Illumination: true,
-        Route: true,
         Side: true,
       },
     });

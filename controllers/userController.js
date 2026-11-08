@@ -110,6 +110,7 @@ exports.createUser = async (req, res) => {
     name,
     additionalEmail,
     industryId,
+    clientIds,
   } = req.body;
   let createdUserId;
 
@@ -269,6 +270,34 @@ exports.createUser = async (req, res) => {
       }
     }
 
+    let normalizedClientIds = [];
+    if (normalizedRole === "ACCOUNT_MANAGER") {
+      if (!Array.isArray(clientIds) || clientIds.length === 0) {
+        return res.status(400).json({
+          error: "Select at least one client to assign to this account manager.",
+        });
+      }
+
+      normalizedClientIds = [...new Set(clientIds.map(Number))];
+      if (normalizedClientIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+        return res.status(400).json({ error: "clientIds must contain valid client IDs." });
+      }
+
+      const clientsToAssign = await prisma.user.findMany({
+        where: { id: { in: normalizedClientIds }, role: "CLIENT_AGENCY_USER" },
+        select: { id: true, clientManagerAssignment: { select: { clientId: true } } },
+      });
+      if (clientsToAssign.length !== normalizedClientIds.length) {
+        return res.status(400).json({ error: "One or more selected clients do not exist." });
+      }
+      const alreadyAssigned = clientsToAssign.find((client) => client.clientManagerAssignment);
+      if (alreadyAssigned) {
+        return res.status(400).json({
+          error: `Client ${alreadyAssigned.id} already has an account manager. Use the reassignment endpoint to change it.`,
+        });
+      }
+    }
+
     // Generate a password and hash it
     const generatedPassword = generateRandomPassword();
     const hashedPassword = await bcrypt.hash(generatedPassword, 10);
@@ -301,8 +330,40 @@ exports.createUser = async (req, res) => {
             : [],
         industryId:
           normalizedRole === "CLIENT_AGENCY_USER" ? industryId : undefined,
+        managedClients:
+          normalizedRole === "ACCOUNT_MANAGER"
+            ? {
+                create: normalizedClientIds.map((clientId) => ({
+                  client: { connect: { id: clientId } },
+                })),
+              }
+          : undefined,
       },
-      include: { statesCovered: true, citiesCovered: true },
+      include: {
+        statesCovered: true,
+        citiesCovered: true,
+        clientManagerAssignment: {
+          include: {
+            accountManager: {
+              select: { id: true, firstname: true, lastname: true, email: true, role: true },
+            },
+          },
+        },
+        managedClients:
+          normalizedRole === "ACCOUNT_MANAGER"
+            ? {
+                include: {
+                  client: {
+                    select: {
+                      id: true,
+                      email: true,
+                      advertiser: { select: { id: true, name: true } },
+                    },
+                  },
+                },
+              }
+            : false,
+      },
     });
     createdUserId = newUser.id;
 
@@ -321,18 +382,22 @@ exports.createUser = async (req, res) => {
 
     if (createdUserId !== undefined) {
       try {
+        // Remove assignments first because manager references use ON DELETE RESTRICT.
+        await prisma.clientAccountManager.deleteMany({
+          where: { accountManagerId: createdUserId },
+        });
         await prisma.user.delete({ where: { id: createdUserId } });
       } catch (cleanupError) {
-        console.error("Error removing user after email failure:", cleanupError);
+        console.error("Error rolling back user creation:", cleanupError);
         return res.status(500).json({
           error:
-            "The account email could not be sent, and the new account could not be rolled back. Contact an administrator.",
+            "The account email could not be sent, and the new account could not be removed. Contact an administrator.",
         });
       }
 
       return res.status(502).json({
         error:
-          "The account email could not be sent. The account was not created; please try again later.",
+          "The account email could not be sent. The account and its client assignments were removed; please try again later.",
       });
     }
 
@@ -473,6 +538,7 @@ exports.updateUser = async (req, res) => {
     additionalEmail,
     status,
     industryId,
+    clientIds,
   } = req.body;
 
   try {
@@ -606,6 +672,32 @@ exports.updateUser = async (req, res) => {
       }
     }
 
+    let parsedClientIds;
+    if (userToUpdate.role === "ACCOUNT_MANAGER" && clientIds !== undefined) {
+      try {
+        parsedClientIds =
+          typeof clientIds === "string" ? JSON.parse(clientIds) : clientIds;
+      } catch (_error) {
+        return res.status(400).json({ error: "clientIds must be an array of client IDs." });
+      }
+      if (!Array.isArray(parsedClientIds)) {
+        return res.status(400).json({ error: "clientIds must be an array of client IDs." });
+      }
+
+      parsedClientIds = [...new Set(parsedClientIds.map(Number))];
+      if (parsedClientIds.some((clientId) => !Number.isInteger(clientId) || clientId <= 0)) {
+        return res.status(400).json({ error: "clientIds must contain valid client IDs." });
+      }
+
+      const clients = await prisma.user.findMany({
+        where: { id: { in: parsedClientIds }, role: "CLIENT_AGENCY_USER" },
+        select: { id: true },
+      });
+      if (clients.length !== parsedClientIds.length) {
+        return res.status(400).json({ error: "One or more selected clients do not exist." });
+      }
+    }
+
     // Update the user
     const updatedUser = await prisma.user.update({
       where: { id: parseInt(id) },
@@ -643,6 +735,44 @@ exports.updateUser = async (req, res) => {
       },
     });
 
+    if (parsedClientIds !== undefined) {
+      await prisma.$transaction([
+        prisma.clientAccountManager.deleteMany({
+          where: {
+            OR: [
+              { accountManagerId: userToUpdate.id },
+              { clientId: { in: parsedClientIds } },
+            ],
+          },
+        }),
+        ...(parsedClientIds.length
+          ? [
+              prisma.clientAccountManager.createMany({
+                data: parsedClientIds.map((clientId) => ({
+                  clientId,
+                  accountManagerId: userToUpdate.id,
+                })),
+              }),
+            ]
+          : []),
+      ]);
+    }
+
+    if (userToUpdate.role === "ACCOUNT_MANAGER") {
+      updatedUser.managedClients = await prisma.clientAccountManager.findMany({
+        where: { accountManagerId: userToUpdate.id },
+        include: {
+          client: {
+            select: {
+              id: true,
+              email: true,
+              advertiser: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+    }
+
     res.status(200).json(updatedUser);
   } catch (error) {
     console.error("Error updating user:", error);
@@ -674,6 +804,30 @@ exports.getAccountManagers = async (req, res) => {
       parseInt(limit),
       where
     );
+
+    const accountManagerIds = data.map((manager) => manager.id);
+    const clientAssignments = await prisma.clientAccountManager.findMany({
+      where: { accountManagerId: { in: accountManagerIds } },
+      include: {
+        client: {
+          select: {
+            id: true,
+            email: true,
+            advertiser: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+    const clientsByManager = new Map();
+    for (const assignment of clientAssignments) {
+      if (!clientsByManager.has(assignment.accountManagerId)) {
+        clientsByManager.set(assignment.accountManagerId, []);
+      }
+      clientsByManager.get(assignment.accountManagerId).push(assignment);
+    }
+    for (const manager of data) {
+      manager.managedClients = clientsByManager.get(manager.id) || [];
+    }
 
     res.status(200).json({
       data,
@@ -754,7 +908,17 @@ exports.getClients = async (req, res) => {
       parseInt(page),
       parseInt(limit),
       where,
-      { advertiser: true, industry: true }
+      {
+        advertiser: true,
+        industry: true,
+        clientManagerAssignment: {
+          include: {
+            accountManager: {
+              select: { id: true, firstname: true, lastname: true, email: true, role: true },
+            },
+          },
+        },
+      }
     );
 
     res.status(200).json({
