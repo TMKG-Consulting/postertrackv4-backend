@@ -11,6 +11,34 @@ const eitherStatusIsNotOk = (posterStatus, structureStatus) => {
   return isExplicitlyNotOk(posterStatus) || isExplicitlyNotOk(structureStatus);
 };
 
+const getAberrationRecipients = async (recipients = []) => {
+  const normalize = (values) =>
+    values
+      .flatMap((value) => (Array.isArray(value) ? value : [value]))
+      .filter((value) => typeof value === "string")
+      .map((email) => email.trim())
+      .filter(Boolean);
+
+  try {
+    const chiefAccountManagers = await prisma.user.findMany({
+      where: { role: "CHIEF_ACCOUNT_MANAGER", status: true },
+      select: { email: true },
+    });
+
+    return [
+      ...new Set(
+        normalize([
+          ...recipients,
+          ...chiefAccountManagers.map((manager) => manager.email),
+        ])
+      ),
+    ];
+  } catch (error) {
+    console.error("Error fetching chief account manager recipients:", error);
+    return [...new Set(normalize(recipients))];
+  }
+};
+
 exports.complianceUpload = async (req, res) => {
   const { siteAssignmentId } = req.params;
   const {
@@ -239,6 +267,7 @@ exports.complianceUpload = async (req, res) => {
         "Account Manager";
       const accountManagerEmail =
         complianceReport.campaign?.accountManager?.email;
+      const recipients = await getAberrationRecipients([accountManagerEmail]);
 
       const aberrationDetails = `
         <div style="text-align: left;">
@@ -266,7 +295,7 @@ exports.complianceUpload = async (req, res) => {
 
       try {
         await sendEmail({
-          to: accountManagerEmail,
+          to: recipients,
           subject: "OOH Compliance Aberration Alert!",
           html: aberrationDetails,
           attachments,
@@ -619,7 +648,7 @@ exports.updateComplianceStatus = async (req, res) => {
       }));
 
       const clientEmail = complianceReport.campaign?.client?.email;
-      const additionalEmails =
+      let additionalEmails =
         complianceReport.campaign?.client?.additionalEmail;
 
       // Convert comma-separated string to an array if needed
@@ -629,7 +658,10 @@ exports.updateComplianceStatus = async (req, res) => {
           .map((email) => email.trim());
       }
 
-      const recipients = [clientEmail, ...additionalEmails].filter(Boolean);
+      const recipients = await getAberrationRecipients([
+        clientEmail,
+        additionalEmails,
+      ]);
 
       if (recipients.length > 0) {
         try {
@@ -1057,7 +1089,10 @@ exports.updateComplianceReport = async (req, res) => {
           .map((email) => email.trim());
       }
 
-      const recipients = [clientEmail, ...additionalEmails].filter(Boolean);
+      const recipients = await getAberrationRecipients([
+        clientEmail,
+        additionalEmails,
+      ]);
 
       let visitDateTime = "N/A";
       try {
