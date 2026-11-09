@@ -25,7 +25,6 @@ exports.complianceUpload = async (req, res) => {
     mediaOwner,
     message,
     comment,
-    status,
     bsv,
     structureId,
     posterId,
@@ -85,12 +84,17 @@ exports.complianceUpload = async (req, res) => {
       where: { siteCode, campaignId: parseInt(campaignId) },
     });
 
-    if (existingReport) {
+    if (
+      existingReport &&
+      (existingReport.status !== "disapproved" ||
+        existingReport.siteAssignmentId !== siteAssignment.id)
+    ) {
       return res.status(409).json({
         error:
           "A compliance report already exists for this siteCode and campaign.",
       });
     }
+    const isReupload = Boolean(existingReport);
 
     let imageUrls = [];
     let capturedTimestamps = [];
@@ -137,33 +141,40 @@ exports.complianceUpload = async (req, res) => {
       return res.status(400).json({ error: "At least one image is required." });
     }
 
-    const newComplianceReport = await prisma.complianceReport.create({
-      data: {
-        siteCode,
-        advertiser,
-        brand,
-        city,
-        state,
-        address,
-        boardType,
-        mediaOwner,
-        message,
-        comment,
-        status: status || "pending",
-        bsv: bsv || "0%",
-        imageUrls,
-        geolocations: JSON.stringify(geolocations),
-        capturedTimestamps: JSON.stringify(capturedTimestamps),
-        campaign: { connect: { id: parseInt(campaignId) } },
-        Illumination: { connect: { id: parseInt(illuminationId) } },
-        Poster: { connect: { id: parseInt(posterId) } },
-        Side: { connect: { id: parseInt(sideId) } },
-        Structure: { connect: { id: parseInt(structureId) } },
-        FieldAuditor: { connect: { id: parseInt(fieldAuditorId) } },
-        siteAssignment: { connect: { id: parseInt(siteAssignmentId) } },
-        uploadedAt: new Date(),
-      },
-    });
+    const reportData = {
+      siteCode,
+      advertiser,
+      brand,
+      city,
+      state,
+      address,
+      boardType,
+      mediaOwner,
+      message,
+      comment,
+      // Preserve disapproved status until a reviewer changes it.
+      status: existingReport?.status || "pending",
+      disapprovalReason: existingReport?.disapprovalReason || null,
+      bsv: bsv || "0%",
+      imageUrls,
+      geolocations: JSON.stringify(geolocations),
+      capturedTimestamps: JSON.stringify(capturedTimestamps),
+      campaign: { connect: { id: parseInt(campaignId) } },
+      Illumination: { connect: { id: parseInt(illuminationId) } },
+      Poster: { connect: { id: parseInt(posterId) } },
+      Side: { connect: { id: parseInt(sideId) } },
+      Structure: { connect: { id: parseInt(structureId) } },
+      FieldAuditor: { connect: { id: parseInt(fieldAuditorId) } },
+      siteAssignment: { connect: { id: siteAssignment.id } },
+      uploadedAt: new Date(),
+    };
+
+    const newComplianceReport = existingReport
+      ? await prisma.complianceReport.update({
+          where: { id: existingReport.id },
+          data: reportData,
+        })
+      : await prisma.complianceReport.create({ data: reportData });
 
     // Fetch the compliance report again to include related data
     const complianceReport = await prisma.complianceReport.findUnique({
@@ -256,7 +267,10 @@ exports.complianceUpload = async (req, res) => {
 
         console.log("Aberration alert email sent successfully.");
         return res.status(201).json({
-          message: "Compliance report successfully created.",
+          message: isReupload
+            ? "Disapproved compliance report successfully reuploaded."
+            : "Compliance report successfully created.",
+          reuploaded: isReupload,
           complianceReport,
         });
       } catch (emailError) {
@@ -265,7 +279,10 @@ exports.complianceUpload = async (req, res) => {
     }
 
     res.status(201).json({
-      message: "Compliance report successfully created.",
+      message: isReupload
+        ? "Disapproved compliance report successfully reuploaded."
+        : "Compliance report successfully created.",
+      reuploaded: isReupload,
       newComplianceReport,
     });
   } catch (error) {
@@ -520,15 +537,19 @@ exports.updateComplianceStatus = async (req, res) => {
 
     // Handle disapproval case
     if (status === "disapproved") {
-      if (!disapprovalReason) {
+      if (typeof disapprovalReason !== "string" || !disapprovalReason.trim()) {
         return res
           .status(400)
           .json({ error: "Disapproval reason is required." });
       }
 
-      await prisma.complianceReport.update({
+      const updatedReport = await prisma.complianceReport.update({
         where: { id: parseInt(id) },
-        data: { status },
+        data: {
+          status,
+          disapprovalReason: disapprovalReason.trim(),
+        },
+        select: { id: true, status: true, disapprovalReason: true },
       });
 
       if (complianceReport.siteAssignmentId) {
@@ -540,7 +561,7 @@ exports.updateComplianceStatus = async (req, res) => {
 
       return res.status(200).json({
         message: "Compliance report marked as disapproved.",
-        disapprovalReason,
+        complianceReport: updatedReport,
       });
     }
 
@@ -552,7 +573,7 @@ exports.updateComplianceStatus = async (req, res) => {
 
     await prisma.complianceReport.update({
       where: { id: parseInt(id) },
-      data: { status },
+      data: { status, disapprovalReason: null },
     });
 
     if (complianceReport.siteAssignmentId) {

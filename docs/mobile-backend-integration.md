@@ -68,13 +68,14 @@ Success (`200`):
       "campaignID": "ABC-JAN-26",
       "uploadedAt": "...",
       "advertiser": "...",
-      "status": "pending"
+      "status": "pending",
+      "disapprovalReason": null
     }
   ]
 }
 ```
 
-Assignments are filtered to the authenticated user's ID. An empty result currently returns `404` with `{ "message": "No site assignments found." }`, not an empty `assignedSites` array. `mainCampaignId` is the integer `Campaign.id`; `campaignID` is a display code.
+Assignments are filtered to the authenticated user's ID. A disapproved site returns `status: "disapproved"` and its `disapprovalReason`; the frontend should show the reason and allow the auditor to resubmit that site. An empty result currently returns `404` with `{ "message": "No site assignments found." }`, not an empty `assignedSites` array. `mainCampaignId` is the integer `Campaign.id`; `campaignID` is a display code.
 
 Campaign site allocation matches both the uploaded site's city and state against the cities configured for active field auditors. Field auditor create/update requests must provide `citiesCovered` as city IDs (from `GET /states/:stateId/cities` or `GET /cities`). If multiple active auditors cover the same city, assignments are spread across those auditors. A site with no city/state match remains unassigned.
 
@@ -122,7 +123,7 @@ Text form fields (all required unless marked optional):
 
 Attach **1 to 5** supported image parts, each with the exact field name **`imageUrls`**. EXIF GPS and `DateTimeOriginal` capture time are optional. If either GPS coordinate is missing, the backend stores both latitude and longitude as `0`; if capture time is missing, it stores and watermarks the value as `Not Found`. The backend applies a watermark, converts images it can decode to JPEG, uploads them to Google Cloud Storage, and stores the resulting public URLs. Do not send a manually supplied `imageUrls` string instead of file parts.
 
-The assignment must belong to the authenticated auditor, and the submitted `siteCode` must exactly match that assignment. A report already submitted for the same `(siteCode, campaignId)` returns `409`.
+The assignment must belong to the authenticated auditor, and the submitted `siteCode` must exactly match that assignment. A new upload for an existing `(siteCode, campaignId)` returns `409` unless its report is disapproved and belongs to this assignment. In that case, the existing report is updated with the new submission, while its status remains `disapproved` until a reviewer changes it.
 
 Success (`201`) normally returns:
 
@@ -133,7 +134,7 @@ Success (`201`) normally returns:
 }
 ```
 
-For aberration reports the response property is currently `complianceReport` instead of `newComplianceReport`; clients should accept either property. Other likely errors: `400` missing fields/image or invalid image metadata, `404` invalid/unowned assignment, `409` duplicate, `500` image processing/storage/database failure.
+For aberration reports the response property is currently `complianceReport` instead of `newComplianceReport`; clients should accept either property. Reuploads return `reuploaded: true`; new uploads return `reuploaded: false`. After a reupload, refresh assigned sites and use the response's `reuploaded` flag to show confirmation; the stored status remains `disapproved` as requested. Other likely errors: `400` missing fields/image, `404` invalid/unowned assignment, `409` duplicate or non-disapproved prior report, `500` image processing/storage/database failure.
 
 ### 5. Upload a competitive report
 

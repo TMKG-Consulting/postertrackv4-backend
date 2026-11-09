@@ -122,6 +122,7 @@ model ComplianceReport {
   uploadedBy       Int
   uploadedAt       DateTime       @default(now())
   status           String         @default("pending")
+  disapprovalReason String?
   siteAssignmentId Int?
   bsv              String?         @default("0%")
   city             String

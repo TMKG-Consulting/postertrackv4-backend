@@ -710,6 +710,12 @@ exports.getAssignedSites = async (req, res) => {
             client: { select: { advertiser: true } },
           },
         },
+        ComplianceReport: {
+          select: {
+            status: true,
+            disapprovalReason: true,
+          },
+        },
       },
     });
 
@@ -756,6 +762,10 @@ exports.getAssignedSites = async (req, res) => {
         uploadedAt: assignment.campaign?.uploadedAt,
         advertiser: assignment.campaign?.client?.advertiser || "Unknown",
         status: assignment.status,
+        disapprovalReason:
+          assignment.ComplianceReport?.find(
+            (report) => report.status === "disapproved"
+          )?.disapprovalReason || null,
       };
     });
 
