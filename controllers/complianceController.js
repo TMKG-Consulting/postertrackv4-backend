@@ -152,9 +152,9 @@ exports.complianceUpload = async (req, res) => {
       mediaOwner,
       message,
       comment,
-      // Preserve disapproved status until a reviewer changes it.
-      status: existingReport?.status || "pending",
-      disapprovalReason: existingReport?.disapprovalReason || null,
+      // A resubmission goes back to the account manager for review.
+      status: "pending",
+      disapprovalReason: null,
       bsv: bsv || "0%",
       imageUrls,
       geolocations: JSON.stringify(geolocations),
@@ -175,6 +175,13 @@ exports.complianceUpload = async (req, res) => {
           data: reportData,
         })
       : await prisma.complianceReport.create({ data: reportData });
+
+    if (isReupload) {
+      await prisma.siteAssignment.update({
+        where: { id: siteAssignment.id },
+        data: { status: "pending" },
+      });
+    }
 
     // Fetch the compliance report again to include related data
     const complianceReport = await prisma.complianceReport.findUnique({
