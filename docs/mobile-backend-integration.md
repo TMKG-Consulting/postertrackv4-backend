@@ -17,7 +17,7 @@ This document describes the current backend contract for field auditors using th
 2. Fetch assigned sites from `GET /get-assigned-sites`. Use `siteAssignmentId` as the compliance upload path parameter and `mainCampaignId` as the numeric campaign ID in the upload body. `campaignID` is the human-readable campaign code and is **not** the value expected in `campaignId`.
 3. Fetch compliance reference entities from `GET /entities`.
 4. For competitive reports, fetch the location, category, advertiser, brand, and board-type choices using the catalog endpoints below.
-5. Capture original photos with GPS and capture timestamp metadata intact. Submit each report as multipart form data; the server validates those EXIF fields and uploads watermarked copies.
+5. Submit supported images as multipart form data. EXIF GPS and capture-time metadata are optional; when GPS is absent, it is stored as `0, 0`, and when capture time is absent, it is stored and watermarked as `Not Found`. The server normalizes images it can decode to watermarked JPEGs.
 6. Treat `201` as saved. Retain the returned IDs/URLs. Compliance duplicate submissions return `409`; competitive submissions currently have no duplicate protection or idempotency key.
 
 ## Required endpoints
@@ -120,7 +120,7 @@ Text form fields (all required unless marked optional):
 | `bsv` | Optional; defaults to `"0%"` |
 | `status` | Optional; defaults to `"pending"`. Mobile clients should omit this and let review workflows set status. |
 
-Attach **1 to 5** image parts, each with the exact field name **`imageUrls`**. Each image must include EXIF GPS latitude, GPS longitude, and `DateTimeOriginal` capture time. The backend derives location and timestamp arrays from image metadata, applies a watermark, uploads the image to Google Cloud Storage, and stores the resulting public URLs. Do not send a manually supplied `imageUrls` string instead of file parts.
+Attach **1 to 5** supported image parts, each with the exact field name **`imageUrls`**. EXIF GPS and `DateTimeOriginal` capture time are optional. If either GPS coordinate is missing, the backend stores both latitude and longitude as `0`; if capture time is missing, it stores and watermarks the value as `Not Found`. The backend applies a watermark, converts images it can decode to JPEG, uploads them to Google Cloud Storage, and stores the resulting public URLs. Do not send a manually supplied `imageUrls` string instead of file parts.
 
 The assignment must belong to the authenticated auditor, and the submitted `siteCode` must exactly match that assignment. A report already submitted for the same `(siteCode, campaignId)` returns `409`.
 
@@ -156,7 +156,7 @@ Text form fields expected by the controller:
 | `state` | Numeric state ID |
 | `city` | Numeric city ID |
 
-Attach **1 to 5** image parts using the exact field name **`images`**. Each needs EXIF GPS latitude, GPS longitude, and `DateTimeOriginal`, just like compliance images. The server watermarks and uploads the photos, then returns a `201` JSON report row, including image URLs and captured metadata.
+Attach **1 to 5** supported image parts using the exact field name **`images`**. EXIF GPS and `DateTimeOriginal` capture time are optional. Missing GPS coordinates are stored as `0, 0`; missing capture time is stored and watermarked as `Not Found`. The server watermarks and converts images it can decode to JPEG, then returns a `201` JSON report row with image URLs and captured metadata.
 
 The controller does not perform clear required-field validation up front. Send every field above and valid database IDs; missing/invalid values may surface as a generic `500`. If the brand already exists, the server replaces the submitted advertiser and category with the brand's stored advertiser/category. If the brand does not exist, it may create the advertiser, category associations, and brand as part of this upload. There is currently no deduplication/idempotency protection for competitive uploads.
 

@@ -1,7 +1,7 @@
 const prisma = require("../lib/prisma");
-const ExifParser = require("exif-parser");
 const { uploadGCS } = require("../Helpers/gcs");
 const { applyWatermarks } = require("../Helpers/watermark");
+const { getImageMetadata } = require("../Helpers/imageMetadata");
 
 exports.competitiveUpload = async (req, res) => {
   try {
@@ -93,25 +93,11 @@ exports.competitiveUpload = async (req, res) => {
               .json({ error: `Invalid file data for '${file.originalname}'` });
           }
 
-          const parser = ExifParser.create(buffer);
-          const exifData = parser.parse();
+          const { latitude, longitude, captureDate } = getImageMetadata(buffer);
 
-          const latitude = exifData.tags?.GPSLatitude;
-          const longitude = exifData.tags?.GPSLongitude;
-          if (!latitude || !longitude) {
-            return res.status(400).json({
-              error: `Image '${file.originalname}' must contain GPS geotag information.`,
-            });
-          }
-
-          const captureDate = exifData.tags?.DateTimeOriginal;
-          if (!captureDate) {
-            return res.status(400).json({
-              error: `Image '${file.originalname}' must contain capture date and timestamp.`,
-            });
-          }
-
-          const timestamp = new Date(captureDate * 1000).toISOString();
+          const timestamp = Number.isFinite(captureDate)
+            ? new Date(captureDate * 1000).toISOString()
+            : "Not Found";
           capturedTimestamps.push({ timestamp, filename: file.originalname });
           geolocations.push({ latitude, longitude });
 

@@ -41,13 +41,13 @@ router.post(
 router.get(
   "/api/brands",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "FIELD_AUDITOR"]),
   brandController.getAllBrands
 );
 router.get(
   "/api/advertiser/:advertiserId/brands",
   authToken,
-  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER", "FIELD_AUDITOR"]),
   brandController.getBrands
 );
 

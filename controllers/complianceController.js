@@ -1,8 +1,15 @@
 const prisma = require("../lib/prisma");
 const { uploadGCS } = require("../Helpers/gcs");
 const { sendEmail } = require("../Helpers/email");
-const ExifParser = require("exif-parser");
 const { applyWatermarks } = require("../Helpers/watermark");
+const { getImageMetadata } = require("../Helpers/imageMetadata");
+
+const eitherStatusIsNotOk = (posterStatus, structureStatus) => {
+  const isExplicitlyNotOk = (value) =>
+    typeof value === "string" && value.trim().toLowerCase() !== "ok";
+
+  return isExplicitlyNotOk(posterStatus) || isExplicitlyNotOk(structureStatus);
+};
 
 exports.complianceUpload = async (req, res) => {
   const { siteAssignmentId } = req.params;
@@ -99,25 +106,11 @@ exports.complianceUpload = async (req, res) => {
               .json({ error: `Invalid file data for '${file.originalname}'` });
           }
 
-          const parser = ExifParser.create(buffer);
-          const exifData = parser.parse();
+          const { latitude, longitude, captureDate } = getImageMetadata(buffer);
 
-          const latitude = exifData.tags?.GPSLatitude;
-          const longitude = exifData.tags?.GPSLongitude;
-          if (!latitude || !longitude) {
-            return res.status(400).json({
-              error: `Image '${file.originalname}' must contain GPS geotag information.`,
-            });
-          }
-
-          const captureDate = exifData.tags?.DateTimeOriginal;
-          if (!captureDate) {
-            return res.status(400).json({
-              error: `Image '${file.originalname}' must contain capture date and timestamp.`,
-            });
-          }
-
-          const timestamp = new Date(captureDate * 1000).toISOString();
+          const timestamp = Number.isFinite(captureDate)
+            ? new Date(captureDate * 1000).toISOString()
+            : "Not Found";
           capturedTimestamps.push({ timestamp, filename: file.originalname });
           geolocations.push({ latitude, longitude });
 
@@ -189,7 +182,7 @@ exports.complianceUpload = async (req, res) => {
       },
     });
 
-    // Validate if Poster or Structure is not OK and send aberration alert
+    // Send an aberration alert when either status is explicitly not OK.
     const posterStatus = complianceReport.Poster.name || "N/A";
     const structureStatus = complianceReport.Structure?.name || "N/A";
 
@@ -202,24 +195,27 @@ exports.complianceUpload = async (req, res) => {
       if (timestamps.length > 0) {
         const firstCapturedTimestamp = timestamps[0]?.timestamp;
         if (firstCapturedTimestamp) {
-          visitDateTime = new Date(firstCapturedTimestamp)
-            .toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            })
-            .replace(",", " |")
-            .toLowerCase();
+          visitDateTime =
+            firstCapturedTimestamp === "Not Found"
+              ? "Not Found"
+              : new Date(firstCapturedTimestamp)
+                  .toLocaleString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })
+                  .replace(",", " |")
+                  .toLowerCase();
         }
       }
     } catch (error) {
       console.error("Error parsing timestamps:", error);
     }
 
-    if (posterStatus !== "Ok" || structureStatus !== "Ok") {
+    if (eitherStatusIsNotOk(complianceReport.Poster?.name, complianceReport.Structure?.name)) {
       const accountManagerName =
         complianceReport.campaign?.accountManager?.firstname ||
         "Account Manager";
@@ -502,17 +498,20 @@ exports.updateComplianceStatus = async (req, res) => {
       if (timestamps.length > 0) {
         const firstCapturedTimestamp = timestamps[0]?.timestamp;
         if (firstCapturedTimestamp) {
-          visitDateTime = new Date(firstCapturedTimestamp)
-            .toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            })
-            .replace(",", " |")
-            .toLowerCase();
+          visitDateTime =
+            firstCapturedTimestamp === "Not Found"
+              ? "Not Found"
+              : new Date(firstCapturedTimestamp)
+                  .toLocaleString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })
+                  .replace(",", " |")
+                  .toLowerCase();
         }
       }
     } catch (error) {
@@ -546,8 +545,10 @@ exports.updateComplianceStatus = async (req, res) => {
     }
 
     // Handle approval logic
-    const isPosterOk = complianceReport.Poster.name === "Ok";
-    const isStructureOk = complianceReport.Structure.name === "Ok";
+    const shouldSendAberrationAlert = eitherStatusIsNotOk(
+      complianceReport.Poster?.name,
+      complianceReport.Structure?.name
+    );
 
     await prisma.complianceReport.update({
       where: { id: parseInt(id) },
@@ -561,8 +562,8 @@ exports.updateComplianceStatus = async (req, res) => {
       });
     }
 
-    // If either Poster or Structure is NOT "Ok", send an aberration alert
-    if (status === "approved" && (!isPosterOk || !isStructureOk)) {
+    // Send an aberration alert when either status is explicitly not OK.
+    if (status === "approved" && shouldSendAberrationAlert) {
       const clientName =
         complianceReport.campaign?.client?.advertiser.name || "Client";
       const aberrationDetails = `
@@ -1015,11 +1016,8 @@ exports.updateComplianceReport = async (req, res) => {
     const newPosterStatus = updatedCompliance.Poster?.name || "N/A";
     const newStructureStatus = updatedCompliance.Structure?.name || "N/A";
 
-    // Check if poster or structure is not "Ok" after update
-    const isPosterChanged = newPosterStatus !== "Ok";
-    const isStructureChanged = newStructureStatus !== "Ok";
-
-    if (isPosterChanged || isStructureChanged) {
+    // Send an aberration alert when either status is explicitly not OK.
+    if (eitherStatusIsNotOk(newPosterStatus, newStructureStatus)) {
       const clientEmail = complianceReport.campaign?.client?.email;
       let additionalEmails = complianceReport.campaign?.client?.additionalEmail;
       const clientName =
@@ -1039,17 +1037,21 @@ exports.updateComplianceReport = async (req, res) => {
           complianceReport.capturedTimestamps || "[]"
         );
         if (timestamps.length > 0) {
-          visitDateTime = new Date(timestamps[0]?.timestamp)
-            .toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            })
-            .replace(",", " |")
-            .toLowerCase();
+          const firstCapturedTimestamp = timestamps[0]?.timestamp;
+          visitDateTime =
+            firstCapturedTimestamp === "Not Found"
+              ? "Not Found"
+              : new Date(firstCapturedTimestamp)
+                  .toLocaleString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })
+                  .replace(",", " |")
+                  .toLowerCase();
         }
       } catch (error) {
         console.error("Error parsing timestamps:", error);

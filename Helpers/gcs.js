@@ -43,7 +43,8 @@ const uploadToGCS = async (file) => {
 
 const uploadGCS = async ({ buffer, filename }) => {
   return new Promise((resolve, reject) => {
-    const blob = bucket.file(Date.now() + "-" + filename);
+    const baseName = path.basename(filename, path.extname(filename));
+    const blob = bucket.file(Date.now() + "-" + baseName + ".jpg");
     const blobStream = blob.createWriteStream({
       resumable: false,
       contentType: "image/jpeg",
