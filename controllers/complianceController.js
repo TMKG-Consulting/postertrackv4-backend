@@ -3,6 +3,7 @@ const { uploadGCS } = require("../Helpers/gcs");
 const { sendEmail } = require("../Helpers/email");
 const { applyWatermarks } = require("../Helpers/watermark");
 const { getImageMetadata } = require("../Helpers/imageMetadata");
+const { addReportExportFields } = require("../Helpers/reportExportFields");
 
 const eitherStatusIsNotOk = (posterStatus, structureStatus) => {
   const isExplicitlyNotOk = (value) =>
@@ -142,7 +143,7 @@ exports.complianceUpload = async (req, res) => {
 
           const timestamp = Number.isFinite(captureDate)
             ? new Date(captureDate * 1000).toISOString()
-            : "Not Found";
+            : null;
           capturedTimestamps.push({ timestamp, filename: file.originalname });
           geolocations.push({ latitude, longitude });
 
@@ -389,7 +390,9 @@ exports.getAllComplianceUploads = async (req, res) => {
 
     res.status(200).json({
       message: "Compliance uploads retrieved successfully.",
-      data: complianceReports,
+      data: complianceReports.map((report) =>
+        addReportExportFields(report, "imageUrls")
+      ),
       pagination: {
         totalRecords,
         totalPages: Math.ceil(totalRecords / limit),
@@ -435,7 +438,7 @@ exports.viewComplianceUpload = async (req, res) => {
 
     res.status(200).json({
       message: "Compliance upload retrieved successfully.",
-      data: complianceReport,
+      data: addReportExportFields(complianceReport, "imageUrls"),
     });
   } catch (error) {
     console.error("Error fetching compliance upload:", error);
@@ -970,7 +973,9 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
 
     res.status(200).json({
       message: "Compliance reports retrieved successfully.",
-      data: complianceReports,
+      data: complianceReports.map((report) =>
+        addReportExportFields(report, "imageUrls")
+      ),
       pagination: {
         currentPage: parseInt(page),
         limit: parseInt(limit),

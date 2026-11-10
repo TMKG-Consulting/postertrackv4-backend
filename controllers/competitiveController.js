@@ -2,6 +2,7 @@ const prisma = require("../lib/prisma");
 const { uploadGCS } = require("../Helpers/gcs");
 const { applyWatermarks } = require("../Helpers/watermark");
 const { getImageMetadata } = require("../Helpers/imageMetadata");
+const { addReportExportFields } = require("../Helpers/reportExportFields");
 
 exports.competitiveUpload = async (req, res) => {
   try {
@@ -97,7 +98,7 @@ exports.competitiveUpload = async (req, res) => {
 
           const timestamp = Number.isFinite(captureDate)
             ? new Date(captureDate * 1000).toISOString()
-            : "Not Found";
+            : null;
           capturedTimestamps.push({ timestamp, filename: file.originalname });
           geolocations.push({ latitude, longitude });
 
@@ -178,7 +179,7 @@ exports.viewCompetitiveUpload = async (req, res) => {
 
     res.status(200).json({
       message: "Competitive upload retrieved successfully.",
-      data: competitiveReport,
+      data: addReportExportFields(competitiveReport, "images"),
     });
   } catch (error) {
     console.error("Error fetching competitive upload:", error);
@@ -217,7 +218,7 @@ exports.getCompetitiveUploads = async (req, res) => {
       total,
       page: parseInt(page),
       limit: parseInt(limit),
-      uploads,
+      uploads: uploads.map((report) => addReportExportFields(report, "images")),
     });
   } catch (error) {
     console.error(error);

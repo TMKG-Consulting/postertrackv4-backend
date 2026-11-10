@@ -17,7 +17,7 @@ This document describes the current backend contract for field auditors using th
 2. Fetch assigned sites from `GET /get-assigned-sites`. Use `siteAssignmentId` as the compliance upload path parameter and `mainCampaignId` as the numeric campaign ID in the upload body. `campaignID` is the human-readable campaign code and is **not** the value expected in `campaignId`.
 3. Fetch compliance reference entities from `GET /entities`.
 4. For competitive reports, fetch the location, category, advertiser, brand, and board-type choices using the catalog endpoints below.
-5. Submit supported images as multipart form data. EXIF GPS and capture-time metadata are optional; when GPS is absent, it is stored as `0, 0`, and when capture time is absent, it is stored and watermarked as `Not Found`. The server normalizes images it can decode to watermarked JPEGs.
+5. Submit supported images as multipart form data. EXIF GPS and capture-time metadata are optional; when GPS is absent, it is stored as `0, 0`, and when capture time is absent, captured metadata is stored as `null` (the image watermark says `Not Found`). The server normalizes images it can decode to watermarked JPEGs.
 6. Treat `201` as saved. Retain the returned IDs/URLs. Compliance duplicate submissions return `409`; competitive submissions currently have no duplicate protection or idempotency key.
 
 ## Required endpoints
@@ -121,7 +121,7 @@ Text form fields (all required unless marked optional):
 | `bsv` | Optional; defaults to `"0%"` |
 | `status` | Optional; defaults to `"pending"`. Mobile clients should omit this and let review workflows set status. |
 
-Attach **1 to 5** supported image parts, each with the exact field name **`imageUrls`**. EXIF GPS and `DateTimeOriginal` capture time are optional. If either GPS coordinate is missing, the backend stores both latitude and longitude as `0`; if capture time is missing, it stores and watermarks the value as `Not Found`. The backend applies a watermark, converts images it can decode to JPEG, uploads them to Google Cloud Storage, and stores the resulting public URLs. Do not send a manually supplied `imageUrls` string instead of file parts.
+Attach **1 to 5** supported image parts, each with the exact field name **`imageUrls`**. EXIF GPS and `DateTimeOriginal` capture time are optional. If either GPS coordinate is missing, the backend stores both latitude and longitude as `0`; if capture time is missing, the captured timestamp is stored as `null` and the image watermark says `Not Found`. The backend applies a watermark, converts images it can decode to JPEG, uploads them to Google Cloud Storage, and stores the resulting public URLs. Do not send a manually supplied `imageUrls` string instead of file parts.
 
 The assignment must belong to the authenticated auditor, and the submitted `siteCode` must exactly match that assignment. A new upload for an existing `(siteCode, campaignId)` returns `409` unless its report is disapproved and belongs to this assignment. In that case, the existing report is updated with the new submission, its status and site assignment status become `pending`, and its old disapproval reason is cleared so an account manager can review the resubmission.
 
@@ -157,7 +157,7 @@ Text form fields expected by the controller:
 | `state` | Numeric state ID |
 | `city` | Numeric city ID |
 
-Attach **1 to 5** supported image parts using the exact field name **`images`**. EXIF GPS and `DateTimeOriginal` capture time are optional. Missing GPS coordinates are stored as `0, 0`; missing capture time is stored and watermarked as `Not Found`. The server watermarks and converts images it can decode to JPEG, then returns a `201` JSON report row with image URLs and captured metadata.
+Attach **1 to 5** supported image parts using the exact field name **`images`**. EXIF GPS and `DateTimeOriginal` capture time are optional. Missing GPS coordinates are stored as `0, 0`; missing capture time is stored as `null` and the watermark says `Not Found`. The server watermarks and converts images it can decode to JPEG, then returns a `201` JSON report row with image URLs and captured metadata.
 
 The controller does not perform clear required-field validation up front. Send every field above and valid database IDs; missing/invalid values may surface as a generic `500`. If the brand already exists, the server replaces the submitted advertiser and category with the brand's stored advertiser/category. If the brand does not exist, it may create the advertiser, category associations, and brand as part of this upload. There is currently no deduplication/idempotency protection for competitive uploads.
 
@@ -187,6 +187,10 @@ These endpoints exist but are not needed to submit reports:
 - `GET /competitive-upload/:auditorId?page=1&limit=10` returns competitive history for the requested auditor ID. The current handler does not ensure that the requested ID matches the authenticated auditor; use only if the app has a trusted reason to request that ID.
 - `GET /competitive-report/:id` retrieves one competitive report.
 - `GET /compliance-report/:id` retrieves one compliance report.
+
+The company logo is served at `/assets/mediatrak-logo.jpeg`. The frontend should load and embed this image at the top of each generated Excel or PDF report; this backend currently serves report data and the logo asset but does not generate those download files.
+
+For Excel exports, compliance report responses include flat `latitude`, `longitude`, `dateCaptured`, `imageUrls`, `closeShotUrl`, and `longShotUrl` fields. Competitive report responses include the same fields, with its stored `images` exposed as `imageUrls`. `dateCaptured` comes from the image's EXIF capture timestamp, never `uploadedAt`, and is `null` if no capture time is present. Shot URLs are identified from uploaded filenames containing `close` or `long`; for older two-image uploads without those labels, the first image is treated as close shot and the second as long shot. The backend returns these values; the frontend's workbook export should map each value to its matching column.
 
 ## Backend behavior and mobile implementation notes
 

@@ -28,6 +28,7 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static("uploads"));
+app.use("/assets", express.static("public"));
 app.use("/", userRoutes);
 app.use("/", campaignRoutes);
 app.use("/", locationRoutes);
