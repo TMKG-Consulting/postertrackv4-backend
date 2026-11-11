@@ -1,4 +1,7 @@
+const PAGE_SIZE = 50;
+
 async function paginate(model, page, limit, where, include, orderBy = {}) {
+  limit = PAGE_SIZE;
   const skip = (page - 1) * limit;
 
   const [data, total] = await Promise.all([
@@ -19,6 +22,7 @@ async function paginate(model, page, limit, where, include, orderBy = {}) {
 
 // Helpers/paginate.js
 const campaignPaginate = async (model, page, limit, options = {}) => {
+  limit = PAGE_SIZE;
   const skip = (page - 1) * limit;
 
   // Extract `where` filter from options
@@ -43,4 +47,4 @@ const campaignPaginate = async (model, page, limit, options = {}) => {
   return { data, total, totalPages };
 };
 
-module.exports = { paginate, campaignPaginate };
+module.exports = { paginate, campaignPaginate, PAGE_SIZE };

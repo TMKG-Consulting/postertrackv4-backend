@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const { Storage } = require("@google-cloud/storage");
 const path = require("path");
 const prisma = require("../lib/prisma");
-const { paginate } = require("../Helpers/paginate");
+const { paginate, PAGE_SIZE } = require("../Helpers/paginate");
 const { sendEmail } = require("../Helpers/email");
 
 const normalizeIdArray = (value) => {
@@ -782,7 +782,8 @@ exports.updateUser = async (req, res) => {
 
 //Get all account managers
 exports.getAccountManagers = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
+  const { page = 1, search = "" } = req.query;
+  const limit = PAGE_SIZE;
 
   try {
     const where = {
@@ -843,7 +844,8 @@ exports.getAccountManagers = async (req, res) => {
 
 //Get all field auditors
 exports.getFieldAuditors = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
+  const { page = 1, search = "" } = req.query;
+  const limit = PAGE_SIZE;
 
   try {
     const where = {
@@ -884,7 +886,8 @@ exports.getFieldAuditors = async (req, res) => {
 
 //Get all clients
 exports.getClients = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
+  const { page = 1, search = "" } = req.query;
+  const limit = PAGE_SIZE;
 
   try {
     const where = {

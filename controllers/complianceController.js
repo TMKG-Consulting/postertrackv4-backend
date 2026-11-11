@@ -4,6 +4,7 @@ const { sendEmail } = require("../Helpers/email");
 const { applyWatermarks } = require("../Helpers/watermark");
 const { getImageMetadata } = require("../Helpers/imageMetadata");
 const { addReportExportFields } = require("../Helpers/reportExportFields");
+const { PAGE_SIZE } = require("../Helpers/paginate");
 
 const eitherStatusIsNotOk = (posterStatus, structureStatus) => {
   const isExplicitlyNotOk = (value) =>
@@ -333,7 +334,8 @@ exports.complianceUpload = async (req, res) => {
 
 exports.getAllComplianceUploads = async (req, res) => {
   const { user } = req;
-  let { page = 1, limit = 10 } = req.query; // Default to page 1, 10 records per page
+  let { page = 1 } = req.query;
+  const limit = PAGE_SIZE;
 
   page = parseInt(page);
   limit = parseInt(limit);
@@ -704,7 +706,7 @@ exports.getPendingComplianceSites = async (req, res) => {
 
     // Get pagination params with defaults
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = PAGE_SIZE;
     const skip = (page - 1) * limit;
 
     let whereCondition = { status: "pending" };
@@ -813,7 +815,8 @@ exports.checkComplianceUpload = async (req, res) => {
 
 exports.getAllUploadedCampaigns = async (req, res) => {
   const { user } = req;
-  let { page = 1, limit = 10 } = req.query;
+  let { page = 1 } = req.query;
+  const limit = PAGE_SIZE;
 
   page = parseInt(page);
   limit = parseInt(limit);
@@ -897,7 +900,6 @@ exports.getAllUploadedCampaigns = async (req, res) => {
 
 exports.getComplianceReportsForCampaign = async (req, res) => {
   const { campaignID } = req.params;
-  const { page = 1, limit = 10 } = req.query;
   const userRole = req.user.role;
   const accountManagerId = req.user.id;
 
@@ -935,7 +937,6 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
 
     const whereCondition = { campaignId: campaign.id };
 
-    // Fetch compliance reports with pagination
     const complianceReports = await prisma.complianceReport.findMany({
       where: whereCondition,
       include: {
@@ -960,14 +961,13 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
           },
         },
       },
-      skip: (page - 1) * limit,
-      take: parseInt(limit),
+      orderBy: { uploadedAt: "desc" },
     });
 
     if (complianceReports.length === 0) {
       return res.status(200).json({
-        message: "No pending compliance reports found.",
-        Reports: [],
+        message: "No compliance reports found.",
+        data: [],
       });
     }
 
@@ -976,11 +976,6 @@ exports.getComplianceReportsForCampaign = async (req, res) => {
       data: complianceReports.map((report) =>
         addReportExportFields(report, "imageUrls")
       ),
-      pagination: {
-        currentPage: parseInt(page),
-        limit: parseInt(limit),
-        totalRecords: complianceReports.length,
-      },
     });
   } catch (error) {
     console.error("Error fetching compliance reports:", error);
@@ -1196,7 +1191,7 @@ exports.getPendingApprovalsByAuditor = async (req, res) => {
     }
 
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = PAGE_SIZE;
     const skip = (page - 1) * limit;
 
     // Count total pending approvals for the authenticated field auditor

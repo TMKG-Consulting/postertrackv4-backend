@@ -3,6 +3,7 @@ const { uploadGCS } = require("../Helpers/gcs");
 const { applyWatermarks } = require("../Helpers/watermark");
 const { getImageMetadata } = require("../Helpers/imageMetadata");
 const { addReportExportFields } = require("../Helpers/reportExportFields");
+const { PAGE_SIZE } = require("../Helpers/paginate");
 
 exports.competitiveUpload = async (req, res) => {
   try {
@@ -192,7 +193,8 @@ exports.viewCompetitiveUpload = async (req, res) => {
 
 exports.getCompetitiveUploads = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1 } = req.query;
+    const limit = PAGE_SIZE;
     const skip = (page - 1) * limit;
 
     const uploads = await prisma.competitiveReport.findMany({
@@ -342,7 +344,8 @@ exports.getCompetitiveUploadHistory = async (req, res) => {
       return res.status(400).json({ error: "Invalid field auditor ID." });
     }
 
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1 } = req.query;
+    const limit = PAGE_SIZE;
     const skip = (page - 1) * limit;
 
     const uploads = await prisma.competitiveReport.findMany({

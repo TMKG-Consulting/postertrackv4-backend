@@ -177,6 +177,8 @@ All require `auth-token` and return existing records; IDs from them are the IDs 
 | `GET /brands?page=1&limit=50&search=` | Brands | `{ data, total, totalPages, currentPage }` |
 | `GET /api/board` | Board types | Array of board type records |
 
+Paginated endpoints return 50 records per page. The backend uses this fixed page size even if a smaller or larger `limit` is supplied.
+
 `GET /api/advertiser/:advertiserId/brands` is also available when the UI needs brands for one advertiser; it returns `{ data, total, totalPages, currentPage }` and currently returns `404` when none exist.
 
 ## Optional report retrieval
@@ -184,7 +186,7 @@ All require `auth-token` and return existing records; IDs from them are the IDs 
 These endpoints exist but are not needed to submit reports:
 
 - `GET /check-upload/:siteAssignmentId` checks for a compliance upload. It returns `404` if none exists. The current handler does not verify that the assignment belongs to the token user, so do not treat it as an authorization boundary.
-- `GET /competitive-upload/:auditorId?page=1&limit=10` returns competitive history for the requested auditor ID. The current handler does not ensure that the requested ID matches the authenticated auditor; use only if the app has a trusted reason to request that ID.
+- `GET /competitive-upload/:auditorId?page=1&limit=50` returns competitive history for the requested auditor ID. The current handler does not ensure that the requested ID matches the authenticated auditor; use only if the app has a trusted reason to request that ID.
 - `GET /competitive-report/:id` retrieves one competitive report.
 - `GET /compliance-report/:id` retrieves one compliance report.
 

@@ -1,5 +1,5 @@
 const prisma = require("../lib/prisma");
-const { paginate } = require("../Helpers/paginate");
+const { paginate, PAGE_SIZE } = require("../Helpers/paginate");
 
 //Create an advertiser
 exports.createAdvertiser = async (req, res) => {
@@ -55,7 +55,8 @@ exports.createAdvertiser = async (req, res) => {
 
 //Get All Advertisers
 exports.getAdvertisers = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
+  const { page = 1, search = "" } = req.query;
+  const limit = PAGE_SIZE;
 
   try {
     const where = search

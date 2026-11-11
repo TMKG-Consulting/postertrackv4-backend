@@ -1,6 +1,6 @@
 const prisma = require("../lib/prisma");
 const { uploadToGCS } = require("../Helpers/gcs");
-const { paginate } = require("../Helpers/paginate");
+const { paginate, PAGE_SIZE } = require("../Helpers/paginate");
 
 //Create a brand
 exports.createBrand = async (req, res) => {
@@ -67,7 +67,8 @@ exports.createBrand = async (req, res) => {
 //Get All Brands for an Advertiser
 exports.getBrands = async (req, res) => {
   const { advertiserId } = req.params;
-  const { page = 1, limit = 9 } = req.query;
+  const { page = 1 } = req.query;
+  const limit = PAGE_SIZE;
 
   try {
     // Validate advertiserId
@@ -111,7 +112,8 @@ exports.getBrands = async (req, res) => {
 
 //Get All Brands
 exports.getAllBrands = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
+  const { page = 1, search = "" } = req.query;
+  const limit = PAGE_SIZE;
 
   try {
     const skip = (parseInt(page) - 1) * parseInt(limit);

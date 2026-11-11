@@ -1,5 +1,5 @@
 const prisma = require("../lib/prisma");
-const { paginate } = require("../Helpers/paginate");
+const { paginate, PAGE_SIZE } = require("../Helpers/paginate");
 
 //Create a category
 exports.createCategory = async (req, res) => {
@@ -19,7 +19,8 @@ exports.createCategory = async (req, res) => {
 
 //Get All Categories
 exports.getCategory = async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1 } = req.query;
+  const limit = PAGE_SIZE;
 
   try {
     const orderBy = { name: "asc" };

@@ -1,6 +1,6 @@
 const xlsx = require("xlsx");
 const prisma = require("../lib/prisma");
-const { campaignPaginate } = require("../Helpers/paginate");
+const { campaignPaginate, PAGE_SIZE } = require("../Helpers/paginate");
 
 const normalizeCityName = (value) =>
   String(value ?? "")
@@ -568,7 +568,8 @@ exports.viewCampaign = async (req, res) => {
 exports.fetchCampaigns = async (req, res) => {
   try {
     const { role, id: userId } = req.user;
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const { page = 1, search = "" } = req.query;
+    const limit = PAGE_SIZE;
 
     // Define role-based filters
     let whereClause = {};
