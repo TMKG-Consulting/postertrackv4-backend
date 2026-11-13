@@ -14,6 +14,12 @@ router.post(
   authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
   userController.createUser
 );
+router.post(
+  "/users/:id/reset-password",
+  authToken,
+  authRole(["SUPER_ADMIN", "CHIEF_ACCOUNT_MANAGER"]),
+  userController.resetUserPassword
+);
 router.get(
   "/users",
   authToken,

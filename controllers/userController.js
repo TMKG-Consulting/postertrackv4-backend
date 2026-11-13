@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { Storage } = require("@google-cloud/storage");
 const path = require("path");
@@ -81,7 +82,7 @@ exports.login = async (req, res) => {
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: "12h" }
+      { expiresIn: "12h" },
     );
 
     res.status(200).json({ token });
@@ -93,7 +94,86 @@ exports.login = async (req, res) => {
 
 // Function to generate a random password
 const generateRandomPassword = () => {
-  return Math.random().toString(36).slice(-8);
+  return crypto.randomBytes(18).toString("base64url");
+};
+
+exports.resetUserPassword = async (req, res) => {
+  const userId = Number(req.params.id);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: "A valid user ID is required." });
+  }
+
+  try {
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstname: true,
+        email: true,
+        password: true,
+      },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const temporaryPassword = generateRandomPassword();
+    const newPasswordHash = await bcrypt.hash(temporaryPassword, 10);
+
+    await prisma.user.update({
+      where: { id: targetUser.id },
+      data: { password: newPasswordHash },
+    });
+
+    try {
+      await sendEmail({
+        to: targetUser.email,
+        subject: "Your MediaTrak password has been reset",
+        text: `Hello${targetUser.firstname ? ` ${targetUser.firstname}` : ""},
+
+An administrator reset your MediaTrak password. Use the login details below:
+
+Email: ${targetUser.email}
+password: ${temporaryPassword}`,
+      });
+    } catch (emailError) {
+      console.error("Error emailing the reset password:", emailError);
+
+      try {
+        const rollback = await prisma.user.updateMany({
+          where: { id: targetUser.id, password: newPasswordHash },
+          data: { password: targetUser.password },
+        });
+
+        if (rollback.count === 1) {
+          return res.status(502).json({
+            error:
+              "Password reset email could not be sent; the password reset was reverted.",
+          });
+        }
+      } catch (rollbackError) {
+        console.error(
+          "Error reverting password after email failure:",
+          rollbackError,
+        );
+      }
+
+      return res.status(500).json({
+        error:
+          "Password reset email could not be sent and the password reset could not be confirmed. Contact an administrator.",
+      });
+    }
+
+    return res.status(200).json({
+      message:
+        "Password reset successfully. The new login details were emailed to the user.",
+      user: { id: targetUser.id, email: targetUser.email },
+    });
+  } catch (error) {
+    console.error("Error resetting user password:", error);
+    return res.status(500).json({ error: "Error resetting user password." });
+  }
 };
 
 // Super Admin or Chief Account Manager creating other users
@@ -151,8 +231,7 @@ exports.createUser = async (req, res) => {
     if (normalizedRole === "FIELD_AUDITOR") {
       if (!firstname || !lastname) {
         return res.status(400).json({
-          error:
-            "Firstname and lastname are required for Field Auditor role.",
+          error: "Firstname and lastname are required for Field Auditor role.",
         });
       }
 
@@ -186,7 +265,7 @@ exports.createUser = async (req, res) => {
 
       if (
         validCities.some(
-          (city) => !normalizedStatesCovered.includes(city.stateId)
+          (city) => !normalizedStatesCovered.includes(city.stateId),
         )
       ) {
         return res.status(400).json({
@@ -217,12 +296,12 @@ exports.createUser = async (req, res) => {
 
       // Convert additional emails to lowercase
       normalizedAdditionalEmails = additionalEmail.map((email) =>
-        email.toLowerCase()
+        email.toLowerCase(),
       );
 
       if (
         !normalizedAdditionalEmails.every((email) =>
-          /^\S+@\S+\.\S+$/.test(email)
+          /^\S+@\S+\.\S+$/.test(email),
         )
       ) {
         return res.status(400).json({
@@ -274,23 +353,33 @@ exports.createUser = async (req, res) => {
     if (normalizedRole === "ACCOUNT_MANAGER") {
       if (!Array.isArray(clientIds) || clientIds.length === 0) {
         return res.status(400).json({
-          error: "Select at least one client to assign to this account manager.",
+          error:
+            "Select at least one client to assign to this account manager.",
         });
       }
 
       normalizedClientIds = [...new Set(clientIds.map(Number))];
       if (normalizedClientIds.some((id) => !Number.isInteger(id) || id <= 0)) {
-        return res.status(400).json({ error: "clientIds must contain valid client IDs." });
+        return res
+          .status(400)
+          .json({ error: "clientIds must contain valid client IDs." });
       }
 
       const clientsToAssign = await prisma.user.findMany({
         where: { id: { in: normalizedClientIds }, role: "CLIENT_AGENCY_USER" },
-        select: { id: true, clientManagerAssignment: { select: { clientId: true } } },
+        select: {
+          id: true,
+          clientManagerAssignment: { select: { clientId: true } },
+        },
       });
       if (clientsToAssign.length !== normalizedClientIds.length) {
-        return res.status(400).json({ error: "One or more selected clients do not exist." });
+        return res
+          .status(400)
+          .json({ error: "One or more selected clients do not exist." });
       }
-      const alreadyAssigned = clientsToAssign.find((client) => client.clientManagerAssignment);
+      const alreadyAssigned = clientsToAssign.find(
+        (client) => client.clientManagerAssignment,
+      );
       if (alreadyAssigned) {
         return res.status(400).json({
           error: `Client ${alreadyAssigned.id} already has an account manager. Use the reassignment endpoint to change it.`,
@@ -337,7 +426,7 @@ exports.createUser = async (req, res) => {
                   client: { connect: { id: clientId } },
                 })),
               }
-          : undefined,
+            : undefined,
       },
       include: {
         statesCovered: true,
@@ -345,7 +434,13 @@ exports.createUser = async (req, res) => {
         clientManagerAssignment: {
           include: {
             accountManager: {
-              select: { id: true, firstname: true, lastname: true, email: true, role: true },
+              select: {
+                id: true,
+                firstname: true,
+                lastname: true,
+                email: true,
+                role: true,
+              },
             },
           },
         },
@@ -562,8 +657,8 @@ exports.updateUser = async (req, res) => {
       status === true || status === "true"
         ? true
         : status === false || status === "false"
-        ? false
-        : userToUpdate.status; // Fallback to existing value if invalid
+          ? false
+          : userToUpdate.status; // Fallback to existing value if invalid
 
     // Role-specific validations
     let parsedStates = [];
@@ -678,15 +773,25 @@ exports.updateUser = async (req, res) => {
         parsedClientIds =
           typeof clientIds === "string" ? JSON.parse(clientIds) : clientIds;
       } catch (_error) {
-        return res.status(400).json({ error: "clientIds must be an array of client IDs." });
+        return res
+          .status(400)
+          .json({ error: "clientIds must be an array of client IDs." });
       }
       if (!Array.isArray(parsedClientIds)) {
-        return res.status(400).json({ error: "clientIds must be an array of client IDs." });
+        return res
+          .status(400)
+          .json({ error: "clientIds must be an array of client IDs." });
       }
 
       parsedClientIds = [...new Set(parsedClientIds.map(Number))];
-      if (parsedClientIds.some((clientId) => !Number.isInteger(clientId) || clientId <= 0)) {
-        return res.status(400).json({ error: "clientIds must contain valid client IDs." });
+      if (
+        parsedClientIds.some(
+          (clientId) => !Number.isInteger(clientId) || clientId <= 0,
+        )
+      ) {
+        return res
+          .status(400)
+          .json({ error: "clientIds must contain valid client IDs." });
       }
 
       const clients = await prisma.user.findMany({
@@ -694,7 +799,9 @@ exports.updateUser = async (req, res) => {
         select: { id: true },
       });
       if (clients.length !== parsedClientIds.length) {
-        return res.status(400).json({ error: "One or more selected clients do not exist." });
+        return res
+          .status(400)
+          .json({ error: "One or more selected clients do not exist." });
       }
     }
 
@@ -803,7 +910,7 @@ exports.getAccountManagers = async (req, res) => {
       prisma.user,
       parseInt(page),
       parseInt(limit),
-      where
+      where,
     );
 
     const accountManagerIds = data.map((manager) => manager.id);
@@ -869,7 +976,7 @@ exports.getFieldAuditors = async (req, res) => {
       {
         statesCovered: true,
         citiesCovered: { include: { state: true } },
-      }
+      },
     );
 
     res.status(200).json({
@@ -917,11 +1024,17 @@ exports.getClients = async (req, res) => {
         clientManagerAssignment: {
           include: {
             accountManager: {
-              select: { id: true, firstname: true, lastname: true, email: true, role: true },
+              select: {
+                id: true,
+                firstname: true,
+                lastname: true,
+                email: true,
+                role: true,
+              },
             },
           },
         },
-      }
+      },
     );
 
     res.status(200).json({
